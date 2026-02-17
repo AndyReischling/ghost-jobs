@@ -1,8 +1,13 @@
 import logging
 import re
 from typing import Optional
-from playwright.async_api import async_playwright
 from app.schemas import JobMetadata, Platform
+
+try:
+    from playwright.async_api import async_playwright
+    HAS_PLAYWRIGHT = True
+except ImportError:
+    HAS_PLAYWRIGHT = False
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +42,12 @@ async def scrape_job_page(url: str) -> JobMetadata:
     Open a job posting URL with Playwright and extract metadata.
     Falls back gracefully when selectors don't match.
     """
+    if not HAS_PLAYWRIGHT:
+        raise RuntimeError(
+            "Playwright is not available in this environment. "
+            "Use manual mode to enter job details instead."
+        )
+
     platform = detect_platform(url)
 
     async with async_playwright() as p:

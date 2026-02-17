@@ -1,8 +1,13 @@
 import logging
 import re
 from typing import Optional
-from playwright.async_api import async_playwright
 from app.schemas import RedFlag
+
+try:
+    from playwright.async_api import async_playwright
+    HAS_PLAYWRIGHT = True
+except ImportError:
+    HAS_PLAYWRIGHT = False
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +41,10 @@ async def parity_check(
     careers page. Returns a (score_delta, optional_flag) tuple.
     """
     if not company or not job_title:
+        return 0, None
+
+    if not HAS_PLAYWRIGHT:
+        logger.warning("parity_check: Playwright not installed, skipping")
         return 0, None
 
     domain = _normalize_company_to_domain(company)
