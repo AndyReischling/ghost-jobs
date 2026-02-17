@@ -1,0 +1,56 @@
+{
+  "manifest_version": 3,
+  "name": "Phantasm – Ghost Job Detector",
+  "version": "1.0.0",
+  "description": "Detects ghost job postings in real-time and scores them before you apply.",
+  "permissions": ["tabs", "storage", "activeTab", "scripting"],
+  "host_permissions": [
+    "https://www.linkedin.com/*",
+    "https://indeed.com/*",
+    "https://www.indeed.com/*",
+    "https://*.greenhouse.io/*",
+    "https://*.lever.co/*"
+  ],
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.linkedin.com/jobs/*",
+        "https://indeed.com/viewjob*",
+        "https://www.indeed.com/viewjob*",
+        "https://*.greenhouse.io/jobs/*",
+        "https://*.lever.co/*"
+      ],
+      "js": ["content/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["popup/sidebar.html", "popup/*.js", "chunks/*.js", "*.js", "*.css"],
+      "matches": [
+        "https://www.linkedin.com/*",
+        "https://indeed.com/*",
+        "https://www.indeed.com/*",
+        "https://*.greenhouse.io/*",
+        "https://*.lever.co/*"
+      ]
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

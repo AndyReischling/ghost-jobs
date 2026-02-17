@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Phantasm — Ghost Job Detector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --chartreuse: #B8C63E;
+      --chartreuse-dark: #9AAF2A;
+      --yellow: #F0CB45;
+      --yellow-light: #FDF6E0;
+      --blue: #B5CDE3;
+      --blue-light: #E8F1F8;
+      --lavender: #CDCAD6;
+      --lavender-light: #EDECF0;
+      --green: #4A9B5C;
+      --green-light: #E4F2E7;
+      --deep-green: #2E7D42;
+      --warm-red: #D45B5B;
+      --warm-red-light: #FAEAEA;
+      --bg: #FAFAF8;
+      --card: #FFFFFF;
+      --border: #E8E8E4;
+      --text: #1A1A1A;
+      --text-secondary: #7A7A7A;
+      --text-tertiary: #ABABAB;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ─── Floating Shapes ─── */
+    .shapes {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+
+    .shape {
+      position: absolute;
+      will-change: transform;
+    }
+
+    .s1 {
+      width: 220px; height: 220px;
+      background: var(--chartreuse);
+      border-radius: 50%;
+      top: -60px; left: -40px;
+      opacity: 0.18;
+      animation: drift1 28s ease-in-out infinite;
+    }
+    .s2 {
+      width: 160px; height: 80px;
+      background: var(--yellow);
+      border-radius: 160px 160px 0 0;
+      top: 12%; right: 6%;
+      opacity: 0.22;
+      animation: drift2 32s ease-in-out infinite;
+    }
+    .s3 {
+      width: 100px; height: 100px;
+      background: var(--blue);
+      border-radius: 50%;
+      top: 38%; left: 5%;
+      opacity: 0.2;
+      animation: drift3 24s ease-in-out infinite;
+    }
+    .s4 {
+      width: 140px; height: 90px;
+      background: var(--lavender);
+      border-radius: 14px;
+      top: 55%; right: 3%;
+      opacity: 0.2;
+      animation: drift4 30s ease-in-out infinite;
+    }
+    .s5 {
+      width: 80px; height: 80px;
+      background: var(--green);
+      border-radius: 80px 0 0 0;
+      bottom: 18%; left: 8%;
+      opacity: 0.16;
+      animation: drift5 26s ease-in-out infinite;
+    }
+    .s6 {
+      width: 60px; height: 120px;
+      background: var(--yellow);
+      border-radius: 9999px;
+      bottom: 8%; right: 12%;
+      opacity: 0.18;
+      animation: drift6 22s ease-in-out infinite;
+    }
+    .s7 {
+      width: 48px; height: 48px;
+      background: var(--deep-green);
+      border-radius: 50%;
+      top: 20%; left: 45%;
+      opacity: 0.12;
+      animation: drift7 34s ease-in-out infinite;
+    }
+    .s8 {
+      width: 120px; height: 60px;
+      background: var(--blue);
+      border-radius: 0 120px 120px 0;
+      bottom: 35%; left: -30px;
+      opacity: 0.16;
+      animation: drift2 36s ease-in-out infinite reverse;
+    }
+    .s9 {
+      width: 70px; height: 70px;
+      background: var(--chartreuse);
+      border-radius: 14px;
+      top: 75%; right: 25%;
+      opacity: 0.14;
+      animation: drift3 29s ease-in-out infinite reverse;
+      transform: rotate(45deg);
+    }
+    .s10 {
+      width: 180px; height: 180px;
+      background: var(--lavender);
+      border-radius: 50%;
+      bottom: -50px; right: -50px;
+      opacity: 0.15;
+      animation: drift1 33s ease-in-out infinite reverse;
+    }
+    .s11 {
+      width: 40px; height: 40px;
+      background: var(--yellow);
+      border-radius: 50%;
+      top: 6%; left: 30%;
+      opacity: 0.2;
+      animation: drift5 20s ease-in-out infinite;
+    }
+    .s12 {
+      width: 100px; height: 50px;
+      background: var(--green);
+      border-radius: 100px 100px 0 0;
+      top: 48%; right: 18%;
+      opacity: 0.12;
+      animation: drift6 27s ease-in-out infinite reverse;
+    }
+
+    @keyframes drift1 {
+      0%, 100% { transform: translate(0, 0) rotate(0deg); }
+      25% { transform: translate(25px, -30px) rotate(5deg); }
+      50% { transform: translate(-15px, -50px) rotate(-3deg); }
+      75% { transform: translate(20px, -20px) rotate(7deg); }
+    }
+    @keyframes drift2 {
+      0%, 100% { transform: translate(0, 0) rotate(0deg); }
+      33% { transform: translate(-30px, 25px) rotate(-8deg); }
+      66% { transform: translate(20px, -15px) rotate(5deg); }
+    }
+    @keyframes drift3 {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(35px, 25px) scale(1.05); }
+    }
+    @keyframes drift4 {
+      0%, 100% { transform: translate(0, 0) rotate(0deg); }
+      50% { transform: translate(-25px, -35px) rotate(12deg); }
+    }
+    @keyframes drift5 {
+      0%, 100% { transform: translate(0, 0) rotate(0deg); }
+      33% { transform: translate(20px, -20px) rotate(-6deg); }
+      66% { transform: translate(-15px, 10px) rotate(4deg); }
+    }
+    @keyframes drift6 {
+      0%, 100% { transform: translate(0, 0) rotate(0deg); }
+      50% { transform: translate(-20px, -30px) rotate(-10deg); }
+    }
+    @keyframes drift7 {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      25% { transform: translate(40px, 20px) scale(1.1); }
+      50% { transform: translate(-10px, 40px) scale(0.95); }
+      75% { transform: translate(-30px, -10px) scale(1.05); }
+    }
+
+    /* ─── Layout ─── */
+    .page {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 72px 24px 48px;
+    }
+
+    /* ─── Header ─── */
+    .header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+    .header-mark {
+      width: 48px;
+      height: 48px;
+      margin: 0 auto 16px;
+      animation: markFloat 4s ease-in-out infinite;
+    }
+    .header-mark svg {
+      width: 100%;
+      height: 100%;
+    }
+    @keyframes markFloat {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+    .header h1 {
+      font-size: 52px;
+      font-weight: 900;
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      line-height: 1;
+      margin-bottom: 10px;
+      color: var(--text);
+    }
+    .header p {
+      font-size: 17px;
+      font-weight: 400;
+      color: var(--text-secondary);
+      letter-spacing: 0.3px;
+    }
+
+    /* ─── Card ─── */
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 40px;
+      width: 100%;
+      max-width: 620px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03), 0 8px 32px rgba(0,0,0,0.04);
+    }
+
+    /* ─── Form ─── */
+    .input-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 4px;
+    }
+    .input-group input {
+      flex: 1;
+    }
+    input, textarea, select {
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 400;
+      color: var(--text);
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 18px;
+      outline: none;
+      transition: border-color 0.25s ease, box-shadow 0.25s ease;
+      width: 100%;
+    }
+    input:focus, textarea:focus, select:focus {
+      border-color: var(--chartreuse);
+      box-shadow: 0 0 0 3px rgba(184, 198, 62, 0.15);
+    }
+    input::placeholder, textarea::placeholder {
+      color: var(--text-tertiary);
+    }
+    textarea {
+      resize: vertical;
+      min-height: 120px;
+      line-height: 1.6;
+    }
+
+    .btn {
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+      border: none;
+      border-radius: 12px;
+      padding: 14px 28px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .btn-primary {
+      background: var(--chartreuse);
+      color: #1A1A1A;
+    }
+    .btn-primary:hover {
+      background: var(--chartreuse-dark);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 14px rgba(184, 198, 62, 0.35);
+    }
+    .btn-primary:active {
+      transform: translateY(0);
+    }
+    .btn-primary:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin: 24px 0;
+      color: var(--text-tertiary);
+      font-size: 13px;
+      cursor: pointer;
+      user-select: none;
+      transition: color 0.2s;
+    }
+    .divider:hover { color: var(--text-secondary); }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+    .divider-text {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .divider-arrow {
+      display: inline-block;
+      transition: transform 0.3s ease;
+      font-size: 10px;
+    }
+    .divider-arrow.open { transform: rotate(180deg); }
+
+    .manual-fields {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.4s ease, opacity 0.3s ease;
+      opacity: 0;
+    }
+    .manual-fields.open {
+      max-height: 500px;
+      opacity: 1;
+    }
+    .manual-fields .field-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .manual-fields textarea {
+      margin-bottom: 14px;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+    .field { margin-bottom: 14px; }
+
+    /* ─── Loading Spinner ─── */
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2.5px solid rgba(26, 26, 26, 0.2);
+      border-top-color: #1A1A1A;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── Results ─── */
+    .results {
+      width: 100%;
+      max-width: 620px;
+      margin-top: 32px;
+      opacity: 0;
+      transform: translateY(24px);
+      transition: all 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: none;
+    }
+    .results.visible {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+
+    .score-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 48px 40px 40px;
+      text-align: center;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03), 0 8px 32px rgba(0,0,0,0.04);
+      margin-bottom: 16px;
+    }
+
+    .gauge-container {
+      position: relative;
+      width: 180px;
+      height: 180px;
+      margin: 0 auto 20px;
+    }
+    .gauge-bg { stroke: var(--border); }
+    .gauge-fill {
+      transition: stroke-dasharray 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+      filter: drop-shadow(0 0 8px currentColor);
+    }
+    .gauge-score {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 48px;
+      font-weight: 800;
+      color: var(--text);
+    }
+
+    .score-label {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+    .score-meta {
+      font-size: 15px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+    .score-meta strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    /* ─── Flags ─── */
+    .flags-section {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .flag-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px 20px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+      opacity: 0;
+      transform: translateY(12px);
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .flag-card.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .flag-icon {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: 6px;
+    }
+    .flag-body { flex: 1; min-width: 0; }
+    .flag-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+    .flag-type {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: capitalize;
+    }
+    .flag-severity {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      border-radius: 9999px;
+    }
+    .severity-low {
+      color: var(--text-secondary);
+      background: var(--lavender-light);
+    }
+    .severity-medium {
+      color: #9A7B20;
+      background: var(--yellow-light);
+    }
+    .severity-high {
+      color: var(--warm-red);
+      background: var(--warm-red-light);
+    }
+    .flag-message {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .flag-icon-age { background: var(--blue); }
+    .flag-icon-parity { background: var(--warm-red); }
+    .flag-icon-sentiment { background: var(--yellow); }
+    .flag-icon-financial { background: var(--lavender); }
+    .flag-icon-company { background: var(--deep-green); }
+    .flag-icon-compensation { background: var(--chartreuse); }
+    .flag-icon-structure { background: var(--text-secondary); }
+
+    /* ─── Legend ─── */
+    .legend {
+      display: flex;
+      justify-content: center;
+      gap: 32px;
+      margin-top: 32px;
+      padding: 20px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      letter-spacing: 0.3px;
+    }
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    /* ─── Error ─── */
+    .error-banner {
+      background: var(--warm-red-light);
+      border: 1px solid rgba(212, 91, 91, 0.2);
+      border-radius: 12px;
+      padding: 14px 18px;
+      margin-top: 14px;
+      font-size: 13px;
+      color: var(--warm-red);
+      display: none;
+    }
+    .error-banner.visible { display: block; }
+
+    /* ─── Footer ─── */
+    .footer {
+      margin-top: 48px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-tertiary);
+      letter-spacing: 0.5px;
+    }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 640px) {
+      .page { padding: 48px 16px 32px; }
+      .header h1 { font-size: 36px; letter-spacing: 4px; }
+      .header p { font-size: 15px; }
+      .card { padding: 28px 20px; border-radius: 16px; }
+      .input-group { flex-direction: column; }
+      .score-card { padding: 32px 20px; }
+      .manual-fields .field-row { grid-template-columns: 1fr; }
+      .legend { flex-direction: column; align-items: center; gap: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Floating Shapes -->
+  <div class="shapes">
+    <div class="shape s1"></div>
+    <div class="shape s2"></div>
+    <div class="shape s3"></div>
+    <div class="shape s4"></div>
+    <div class="shape s5"></div>
+    <div class="shape s6"></div>
+    <div class="shape s7"></div>
+    <div class="shape s8"></div>
+    <div class="shape s9"></div>
+    <div class="shape s10"></div>
+    <div class="shape s11"></div>
+    <div class="shape s12"></div>
+  </div>
+
+  <div class="page">
+
+    <!-- Header -->
+    <header class="header">
+      <div class="header-mark">
+        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="24" cy="20" r="16" fill="var(--chartreuse)" opacity="0.9"/>
+          <path d="M12 28 C12 28 12 44 16 44 C18 44 18 40 20 40 C22 40 22 44 24 44 C26 44 26 40 28 40 C30 40 30 44 32 44 C36 44 36 28 36 28" fill="var(--chartreuse)" opacity="0.9"/>
+          <circle cx="19" cy="19" r="2.5" fill="var(--text)"/>
+          <circle cx="29" cy="19" r="2.5" fill="var(--text)"/>
+        </svg>
+      </div>
+      <h1>Phantasm</h1>
+      <p>Detect ghost jobs before you waste your time</p>
+    </header>
+
+    <!-- Input Card -->
+    <div class="card">
+      <div class="field">
+        <label for="url-input">Job posting URL</label>
+        <div class="input-group">
+          <input
+            id="url-input"
+            type="url"
+            placeholder="https://www.linkedin.com/jobs/view/..."
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button class="btn btn-primary" id="analyze-url-btn" onclick="analyzeUrl()">
+            Analyze
+          </button>
+        </div>
+      </div>
+
+      <div class="divider" onclick="toggleManual()">
+        <span class="divider-text">
+          or enter details manually
+          <span class="divider-arrow" id="manual-arrow">▼</span>
+        </span>
+      </div>
+
+      <div class="manual-fields" id="manual-section">
+        <div class="field-row">
+          <div class="field">
+            <label for="manual-title">Job title</label>
+            <input id="manual-title" type="text" placeholder="Senior Software Engineer" />
+          </div>
+          <div class="field">
+            <label for="manual-company">Company</label>
+            <input id="manual-company" type="text" placeholder="Acme Corp" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="manual-desc">Job description</label>
+          <textarea id="manual-desc" placeholder="Paste the full job description here..."></textarea>
+        </div>
+        <button class="btn btn-primary" id="analyze-manual-btn" style="width: 100%;" onclick="analyzeManual()">
+          Analyze Details
+        </button>
+      </div>
+
+      <div class="error-banner" id="error-banner"></div>
+    </div>
+
+    <!-- Results -->
+    <div class="results" id="results">
+
+      <div class="score-card">
+        <div class="gauge-container">
+          <svg viewBox="0 0 180 180" width="180" height="180">
+            <circle class="gauge-bg" cx="90" cy="90" r="74" fill="none" stroke-width="8" />
+            <circle
+              class="gauge-fill"
+              id="gauge-arc"
+              cx="90" cy="90" r="74"
+              fill="none"
+              stroke-width="8"
+              stroke-linecap="round"
+              stroke-dasharray="0 465"
+              transform="rotate(-90 90 90)"
+            />
+          </svg>
+          <div class="gauge-score" id="gauge-number">0</div>
+        </div>
+        <div class="score-label" id="score-label">—</div>
+        <div class="score-meta">
+          <strong id="result-title"></strong><br>
+          <span id="result-company"></span>
+        </div>
+      </div>
+
+      <div class="flags-section" id="flags-section"></div>
+
+      <div class="legend">
+        <div class="legend-item">
+          <span class="legend-dot" style="background: var(--green);"></span>
+          0–39 Safe
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot" style="background: var(--yellow);"></span>
+          40–69 Suspicious
+        </div>
+        <div class="legend-item">
+          <span class="legend-dot" style="background: var(--warm-red);"></span>
+          70–100 Ghost
+        </div>
+      </div>
+    </div>
+
+    <footer class="footer">Phantasm — Ghost Job Detector</footer>
+  </div>
+
+<script>
+const API = window.location.origin;
+const CIRCUMFERENCE = 2 * Math.PI * 74; // ~465
+
+const SCORE_COLORS = {
+  green: getComputedStyle(document.documentElement).getPropertyValue('--green').trim(),
+  yellow: getComputedStyle(document.documentElement).getPropertyValue('--yellow').trim(),
+  red: getComputedStyle(document.documentElement).getPropertyValue('--warm-red').trim(),
+};
+
+const LABEL_TEXT = {
+  safe: 'SAFE',
+  suspicious: 'SUSPICIOUS',
+  ghost: 'LIKELY GHOST',
+};
+
+const FLAG_LABELS = {
+  age: 'Posting Age',
+  parity: 'Careers Page',
+  sentiment: 'JD Quality',
+  financial: 'Financial Health',
+  company: 'Company Intel',
+  compensation: 'Compensation',
+  structure: 'Role Structure',
+};
+
+/* ─── Toggle Manual ─── */
+function toggleManual() {
+  const section = document.getElementById('manual-section');
+  const arrow = document.getElementById('manual-arrow');
+  section.classList.toggle('open');
+  arrow.classList.toggle('open');
+}
+
+/* ─── Loading State ─── */
+function setLoading(btnId, loading) {
+  const btn = document.getElementById(btnId);
+  if (loading) {
+    btn.disabled = true;
+    btn.dataset.originalText = btn.textContent;
+    btn.innerHTML = '<div class="spinner"></div> Analyzing…';
+  } else {
+    btn.disabled = false;
+    btn.textContent = btn.dataset.originalText || 'Analyze';
+  }
+}
+
+function showError(message) {
+  const banner = document.getElementById('error-banner');
+  banner.textContent = message;
+  banner.classList.add('visible');
+  setTimeout(() => banner.classList.remove('visible'), 8000);
+}
+
+function hideError() {
+  document.getElementById('error-banner').classList.remove('visible');
+}
+
+/* ─── Analyze URL ─── */
+async function analyzeUrl() {
+  const url = document.getElementById('url-input').value.trim();
+  if (!url) {
+    showError('Please enter a job posting URL.');
+    return;
+  }
+  if (!url.startsWith('http')) {
+    showError('Please enter a valid URL starting with https://');
+    return;
+  }
+
+  hideError();
+  setLoading('analyze-url-btn', true);
+
+  try {
+    const res = await fetch(`${API}/web/scrape-and-analyze`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+
+    if (!res.ok) throw new Error(`Server responded with ${res.status}`);
+
+    const data = await res.json();
+    renderResults(data);
+  } catch (err) {
+    showError(`Analysis failed: ${err.message}. Try entering details manually.`);
+  } finally {
+    setLoading('analyze-url-btn', false);
+  }
+}
+
+/* ─── Analyze Manual ─── */
+async function analyzeManual() {
+  const title = document.getElementById('manual-title').value.trim();
+  const company = document.getElementById('manual-company').value.trim();
+  const rawText = document.getElementById('manual-desc').value.trim();
+  const url = document.getElementById('url-input').value.trim() || 'https://manual-entry';
+
+  if (!title || !company || !rawText) {
+    showError('Please fill in job title, company, and description.');
+    return;
+  }
+
+  hideError();
+  setLoading('analyze-manual-btn', true);
+
+  try {
+    const res = await fetch(`${API}/web/manual-analyze`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, title, company, rawText }),
+    });
+
+    if (!res.ok) throw new Error(`Server responded with ${res.status}`);
+
+    const data = await res.json();
+    renderResults(data);
+  } catch (err) {
+    showError(`Analysis failed: ${err.message}`);
+  } finally {
+    setLoading('analyze-manual-btn', false);
+  }
+}
+
+/* ─── Render Results ─── */
+function renderResults(data) {
+  const resultsEl = document.getElementById('results');
+  const score = data.ghostScore.score;
+  const color = SCORE_COLORS[data.ghostScore.color] || SCORE_COLORS.green;
+  const label = LABEL_TEXT[data.ghostScore.label] || 'UNKNOWN';
+
+  // Score gauge
+  const arc = document.getElementById('gauge-arc');
+  arc.style.stroke = color;
+  // Start from 0 and animate
+  arc.style.transition = 'none';
+  arc.setAttribute('stroke-dasharray', `0 ${CIRCUMFERENCE}`);
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      arc.style.transition = 'stroke-dasharray 1.2s cubic-bezier(0.16, 1, 0.3, 1)';
+      const filled = (score / 100) * CIRCUMFERENCE;
+      arc.setAttribute('stroke-dasharray', `${filled} ${CIRCUMFERENCE - filled}`);
+    });
+  });
+
+  // Animate number
+  animateNumber(document.getElementById('gauge-number'), 0, score, 1000);
+
+  // Label
+  const labelEl = document.getElementById('score-label');
+  labelEl.textContent = label;
+  labelEl.style.color = color;
+
+  // Meta
+  document.getElementById('result-title').textContent = data.jobTitle || 'Untitled Position';
+  document.getElementById('result-company').textContent = data.companyName || 'Unknown Company';
+
+  // Flags
+  const flagsEl = document.getElementById('flags-section');
+  flagsEl.innerHTML = '';
+
+  if (data.redFlags && data.redFlags.length > 0) {
+    data.redFlags.forEach((flag, i) => {
+      const card = document.createElement('div');
+      card.className = 'flag-card';
+
+      const iconClass = `flag-icon-${flag.type}`;
+      const severityClass = `severity-${flag.severity}`;
+
+      card.innerHTML = `
+        <div class="flag-icon ${iconClass}"></div>
+        <div class="flag-body">
+          <div class="flag-header">
+            <span class="flag-type">${FLAG_LABELS[flag.type] || flag.type}</span>
+            <span class="flag-severity ${severityClass}">${flag.severity}</span>
+          </div>
+          <div class="flag-message">${flag.message}</div>
+        </div>
+      `;
+
+      flagsEl.appendChild(card);
+
+      // Stagger animation
+      setTimeout(() => card.classList.add('visible'), 200 + i * 120);
+    });
+  }
+
+  // Show results
+  resultsEl.classList.add('visible');
+
+  // Scroll to results
+  setTimeout(() => {
+    resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 300);
+}
+
+/* ─── Number Animation ─── */
+function animateNumber(el, from, to, duration) {
+  const start = performance.now();
+  const diff = to - from;
+
+  function frame(now) {
+    const elapsed = now - start;
+    const progress = Math.min(elapsed / duration, 1);
+    // Ease out cubic
+    const eased = 1 - Math.pow(1 - progress, 3);
+    el.textContent = Math.round(from + diff * eased);
+    if (progress < 1) requestAnimationFrame(frame);
+  }
+
+  requestAnimationFrame(frame);
+}
+
+/* ─── Enter key triggers analyze ─── */
+document.getElementById('url-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') analyzeUrl();
+});
+</script>
+
+</body>
+</html>
