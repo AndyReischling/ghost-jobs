@@ -364,9 +364,7 @@ function sendForAnalysis(metadata: JobMetadata): void {
   chrome.runtime.sendMessage(
     { type: 'ANALYZE_JOB', payload: metadata },
     () => {
-      if (chrome.runtime.lastError) {
-        console.warn('[Phantasm] sendMessage error:', chrome.runtime.lastError.message);
-      }
+      void chrome.runtime.lastError;
     }
   );
 }
