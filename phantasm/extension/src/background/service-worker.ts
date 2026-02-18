@@ -6,6 +6,19 @@ const API_URLS = [
   'http://localhost:8000',
 ];
 
+const DEDUP_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const recentResults = new Map<string, { result: AnalysisResult; timestamp: number }>();
+
+function normalizeJobUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    // Strip tracking params, keep only the job ID path
+    return u.origin + u.pathname.replace(/\/$/, '');
+  } catch {
+    return url;
+  }
+}
+
 const BADGE_COLOR_MAP: Record<string, string> = {
   green: '#22c55e',
   yellow: '#eab308',
@@ -44,6 +57,18 @@ async function tryFetch(apiUrl: string, tabUrl: string, metadata: JobMetadata): 
 }
 
 async function analyzeJob(metadata: JobMetadata, tabId: number, tabUrl: string): Promise<void> {
+  const cacheKey = normalizeJobUrl(tabUrl);
+
+  // Return cached result if analyzed recently
+  const cached = recentResults.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < DEDUP_TTL_MS) {
+    chrome.tabs.sendMessage(tabId, { type: 'ANALYSIS_RESULT', payload: cached.result });
+    const badgeColor = BADGE_COLOR_MAP[cached.result.ghostScore.color] ?? '#6b7280';
+    chrome.action.setBadgeText({ text: String(cached.result.ghostScore.score), tabId });
+    chrome.action.setBadgeBackgroundColor({ color: badgeColor, tabId });
+    return;
+  }
+
   let result: AnalysisResult | null = null;
 
   for (const apiUrl of API_URLS) {
@@ -58,6 +83,8 @@ async function analyzeJob(metadata: JobMetadata, tabId: number, tabUrl: string):
   if (!result) {
     result = createFallbackResult(metadata, tabUrl, 'Phantasm backend unreachable — is the server running?');
   }
+
+  recentResults.set(cacheKey, { result, timestamp: Date.now() });
 
   const entry: ScanHistoryEntry = {
     ...result,

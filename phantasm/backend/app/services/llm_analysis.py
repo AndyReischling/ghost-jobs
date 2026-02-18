@@ -71,6 +71,7 @@ async def llm_analysis(
         message = await client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=512,
+            temperature=0,
             system=SYSTEM_PROMPT,
             messages=[
                 {
@@ -148,6 +149,7 @@ async def llm_deep_analysis(
         message = await client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=512,
+            temperature=0,
             system=SYSTEM_PROMPT,
             messages=[
                 {
