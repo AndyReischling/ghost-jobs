@@ -133,28 +133,49 @@ async def _fetch_direct(url: str) -> str:
 
 
 def _extract_linkedin(html: str, url: str) -> tuple[str, str, Optional[str]]:
-    title = (
-        _find_meta_content(html, ["og:title"])
-        or _find_tag_text(html, r'<h1[^>]*>(.*?)</h1>')
-    )
-    if " - " in title and "|" in title:
-        parts = title.split(" - ", 1)
-        title = parts[0].strip()
+    og_title = _find_meta_content(html, ["og:title"])
+    title = ""
+    company = ""
 
-    company = _find_meta_content(html, ["og:description"])
-    if company and " is hiring" in company.lower():
-        company = company.split(" is hiring")[0].strip()
-    elif company and " posted" in company.lower():
-        company = company.split(" posted")[0].strip()
-    else:
-        company = ""
+    # og:title formats:
+    # "Company hiring Job Title in Location | LinkedIn"
+    # "Job Title - Company | LinkedIn"
+    # "Job Title | LinkedIn"
+    if og_title:
+        clean = og_title.replace(" | LinkedIn", "").strip()
 
-    # Try extracting from rendered DOM if ScrapingBee returned full page
+        if " hiring " in clean:
+            # "Company hiring Job Title in Location"
+            parts = clean.split(" hiring ", 1)
+            company = parts[0].strip()
+            job_part = parts[1] if len(parts) > 1 else ""
+            if " in " in job_part:
+                title = job_part.rsplit(" in ", 1)[0].strip()
+            else:
+                title = job_part.strip()
+        elif " - " in clean:
+            # "Job Title - Company"
+            parts = clean.split(" - ", 1)
+            title = parts[0].strip()
+            company = parts[1].strip() if len(parts) > 1 else ""
+        else:
+            title = clean
+
+    # Try og:description for company if still missing
+    if not company:
+        og_desc = _find_meta_content(html, ["og:description"])
+        if og_desc:
+            if " is hiring" in og_desc.lower():
+                company = og_desc.split(" is hiring")[0].strip()
+            elif " posted" in og_desc.lower():
+                company = og_desc.split(" posted")[0].strip()
+
+    # Try extracting from rendered DOM (ScrapingBee with JS rendering)
     if not title:
         title = _find_tag_text(
             html,
             r'<(?:h1|div|a)[^>]*class="[^"]*job-details-jobs-unified-top-card__job-title[^"]*"[^>]*>(.*?)</(?:h1|div|a)>'
-        )
+        ) or _find_tag_text(html, r'<h1[^>]*>(.*?)</h1>')
     if not company:
         company = _find_tag_text(
             html,

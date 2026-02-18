@@ -167,34 +167,45 @@ async def llm_deep_analysis(
         llm_red_flags = parsed.get("redFlags", [])
 
         # Low legitimacy score
-        if legitimacy_score < 30:
+        if legitimacy_score < 20:
             results.append((
-                15,
+                20,
                 RedFlag(
                     type="sentiment",
                     message=f"AI legitimacy assessment: {legitimacy_score}/100 — this posting has strong ghost job indicators",
                     severity="high",
                 ),
             ))
-        elif legitimacy_score < 50:
+        elif legitimacy_score < 40:
+            results.append((
+                14,
+                RedFlag(
+                    type="sentiment",
+                    message=f"AI legitimacy assessment: {legitimacy_score}/100 — multiple concerns about whether this is a genuine hire",
+                    severity="high",
+                ),
+            ))
+        elif legitimacy_score < 60:
             results.append((
                 8,
                 RedFlag(
                     type="sentiment",
-                    message=f"AI legitimacy assessment: {legitimacy_score}/100 — multiple concerns about whether this is a genuine hire",
+                    message=f"AI legitimacy assessment: {legitimacy_score}/100 — some concerns about this listing",
                     severity="medium",
                 ),
             ))
 
-        # Individual red flags from LLM
+        # Individual red flags from LLM — each is a meaningful signal
         for i, flag_text in enumerate(llm_red_flags[:3]):
             if isinstance(flag_text, str) and len(flag_text) > 10:
+                severity = "high" if i == 0 else "medium"
+                weight = 8 if i == 0 else 5
                 results.append((
-                    3,
+                    weight,
                     RedFlag(
                         type="sentiment",
                         message=f"AI detected: {flag_text}",
-                        severity="medium" if i == 0 else "low",
+                        severity=severity,
                     ),
                 ))
 
