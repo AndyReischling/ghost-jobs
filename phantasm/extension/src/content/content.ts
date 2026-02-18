@@ -22,6 +22,39 @@ function getFirstMatch(...selectors: string[]): string {
   return '';
 }
 
+function extractDescriptionText(platform: Platform): string {
+  const descriptionSelectors: Record<string, string[]> = {
+    linkedin: [
+      '.jobs-description-content__text',
+      '.description__text',
+      '.show-more-less-html__markup',
+      '.jobs-description__container',
+      '[class*="jobs-description"]',
+    ],
+    indeed: [
+      '#jobDescriptionText',
+      '.jobsearch-JobComponent-description',
+      '[class*="jobDescription"]',
+    ],
+    greenhouse: [
+      '#content',
+      '.content',
+    ],
+    lever: [
+      '.posting-page',
+      '.section-wrapper',
+    ],
+  };
+
+  const selectors = descriptionSelectors[platform] ?? [];
+  for (const sel of selectors) {
+    const el = document.querySelector(sel);
+    const text = el?.innerText?.trim() ?? '';
+    if (text.length > 100) return text;
+  }
+  return '';
+}
+
 function extractJobMetadata(): JobMetadata {
   const platform = detectPlatform();
   const url = window.location.href;
@@ -92,7 +125,12 @@ function extractJobMetadata(): JobMetadata {
       break;
   }
 
-  const rawText = document.body.innerText.trim().slice(0, 8000);
+  // Extract focused job description, fall back to full page text
+  let rawText = extractDescriptionText(platform);
+  if (!rawText || rawText.length < 100) {
+    rawText = document.body.innerText.trim();
+  }
+  rawText = rawText.slice(0, 8000);
 
   return { url, title, company, postedDate, rawText, platform };
 }
