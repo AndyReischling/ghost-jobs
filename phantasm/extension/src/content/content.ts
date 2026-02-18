@@ -22,10 +22,14 @@ function getFirstMatch(...selectors: string[]): string {
   return '';
 }
 
+function isLinkedInJobPage(): boolean {
+  return /\/jobs\/view\/\d+/.test(window.location.pathname);
+}
+
 function parseLinkedInPageTitle(): { title: string; company: string } {
   // document.title formats:
   // "Company hiring Job Title in Location | LinkedIn"
-  // "Job Title | Company | LinkedIn"
+  // "Job Title | Extra Info | Company | LinkedIn"
   // "Job Title - Company | LinkedIn"
   const raw = document.title.replace(/\s*\|\s*LinkedIn\s*$/, '').trim();
 
@@ -36,11 +40,12 @@ function parseLinkedInPageTitle(): { title: string; company: string } {
   }
   if (raw.includes(' | ')) {
     const parts = raw.split(' | ');
-    return { title: parts[0].trim(), company: parts.slice(1).join(' | ').trim() };
+    // Company is always the last segment; title is the first
+    return { title: parts[0].trim(), company: parts[parts.length - 1].trim() };
   }
   if (raw.includes(' - ')) {
     const parts = raw.split(' - ');
-    return { title: parts[0].trim(), company: parts.slice(1).join(' - ').trim() };
+    return { title: parts[0].trim(), company: parts[parts.length - 1].trim() };
   }
   return { title: raw, company: '' };
 }
@@ -427,6 +432,12 @@ function attemptExtraction(retryCount: number): void {
   setTimeout(() => attemptExtraction(retryCount + 1), delay);
 }
 
+function shouldAnalyze(): boolean {
+  const platform = detectPlatform();
+  if (platform === 'linkedin') return isLinkedInJobPage();
+  return true;
+}
+
 function main(): void {
   console.log('[Phantasm] Content script loaded on:', window.location.href);
 
@@ -438,7 +449,11 @@ function main(): void {
     }
   });
 
-  // Start extraction with retry
+  if (!shouldAnalyze()) {
+    console.log('[Phantasm] Not a job posting page, skipping analysis');
+    return;
+  }
+
   attemptExtraction(0);
 }
 
@@ -459,7 +474,9 @@ const observer = new MutationObserver(() => {
       const oldSidebar = document.getElementById('phantasm-sidebar-container');
       if (oldSidebar) oldSidebar.remove();
       sidebarVisible = false;
-      attemptExtraction(0);
+      if (shouldAnalyze()) {
+        attemptExtraction(0);
+      }
     }, 2000);
   }
 });
