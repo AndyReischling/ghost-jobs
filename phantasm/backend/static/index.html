@@ -317,35 +317,20 @@
       box-shadow: none;
     }
 
-    .divider {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      margin: 24px 0;
-      color: var(--text-tertiary);
-      font-size: 13px;
+    .divider-line {
+      text-align: center;
+      margin: 20px 0;
       cursor: pointer;
       user-select: none;
+    }
+    .divider-line-text {
+      font-size: 13px;
+      color: var(--text-tertiary);
       transition: color 0.2s;
+      border-bottom: 1px dashed var(--border);
+      padding-bottom: 1px;
     }
-    .divider:hover { color: var(--text-secondary); }
-    .divider::before, .divider::after {
-      content: '';
-      flex: 1;
-      height: 1px;
-      background: var(--border);
-    }
-    .divider-text {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .divider-arrow {
-      display: inline-block;
-      transition: transform 0.3s ease;
-      font-size: 10px;
-    }
-    .divider-arrow.open { transform: rotate(180deg); }
+    .divider-line:hover .divider-line-text { color: var(--text-secondary); }
 
     .manual-fields {
       max-height: 0;
@@ -357,14 +342,12 @@
       max-height: 500px;
       opacity: 1;
     }
-    .manual-fields .field-row {
+
+    .field-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 10px;
       margin-bottom: 10px;
-    }
-    .manual-fields textarea {
-      margin-bottom: 14px;
     }
 
     label {
@@ -581,7 +564,7 @@
       .card { padding: 28px 20px; border-radius: 16px; }
       .input-group { flex-direction: column; }
       .score-card { padding: 32px 20px; }
-      .manual-fields .field-row { grid-template-columns: 1fr; }
+      .field-row { grid-template-columns: 1fr; }
       .legend { flex-direction: column; align-items: center; gap: 12px; }
     }
   </style>
@@ -638,11 +621,8 @@
         </div>
       </div>
 
-      <div class="divider" onclick="toggleManual()">
-        <span class="divider-text">
-          or enter details manually
-          <span class="divider-arrow" id="manual-arrow">▼</span>
-        </span>
+      <div class="divider-line" onclick="toggleManual()">
+        <span class="divider-line-text" id="manual-toggle-text">or paste details manually</span>
       </div>
 
       <div class="manual-fields" id="manual-section">
@@ -745,9 +725,9 @@ const FLAG_LABELS = {
 /* ─── Toggle Manual ─── */
 function toggleManual() {
   const section = document.getElementById('manual-section');
-  const arrow = document.getElementById('manual-arrow');
-  section.classList.toggle('open');
-  arrow.classList.toggle('open');
+  const text = document.getElementById('manual-toggle-text');
+  const isOpen = section.classList.toggle('open');
+  text.textContent = isOpen ? 'hide manual entry' : 'or paste details manually';
 }
 
 /* ─── Loading State ─── */
@@ -801,7 +781,7 @@ async function analyzeUrl() {
     const data = await res.json();
     renderResults(data);
   } catch (err) {
-    showError(`Analysis failed: ${err.message}. Try entering details manually.`);
+    showError(`Analysis failed: ${err.message}. Try pasting details manually.`);
   } finally {
     setLoading('analyze-url-btn', false);
   }

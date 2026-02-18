@@ -1,19 +1,19 @@
+"""
+Job page scraper using httpx + HTML parsing.
+Works on serverless (no Playwright required).
+"""
+
 import logging
 import re
 from typing import Optional
+from html.parser import HTMLParser
+import httpx
 from app.schemas import JobMetadata, Platform
-
-try:
-    from playwright.async_api import async_playwright
-    HAS_PLAYWRIGHT = True
-except ImportError:
-    HAS_PLAYWRIGHT = False
 
 logger = logging.getLogger(__name__)
 
 
 def detect_platform(url: str) -> Platform:
-    """Detect job platform from URL hostname."""
     if "linkedin.com" in url:
         return "linkedin"
     if "indeed.com" in url:
@@ -25,111 +25,211 @@ def detect_platform(url: str) -> Platform:
     return "unknown"
 
 
-async def _get_text(page, selector: str) -> str:
-    """Safely extract text content from a CSS selector."""
-    try:
-        el = await page.query_selector(selector)
-        if el:
-            text = await el.inner_text()
-            return text.strip()
-    except Exception:
-        pass
+class _TextExtractor(HTMLParser):
+    """Extract visible text from HTML, skipping script/style tags."""
+
+    def __init__(self):
+        super().__init__()
+        self._text_parts: list[str] = []
+        self._skip = False
+        self._skip_tags = {"script", "style", "noscript", "svg", "head"}
+
+    def handle_starttag(self, tag, attrs):
+        if tag in self._skip_tags:
+            self._skip = True
+
+    def handle_endtag(self, tag):
+        if tag in self._skip_tags:
+            self._skip = False
+
+    def handle_data(self, data):
+        if not self._skip:
+            text = data.strip()
+            if text:
+                self._text_parts.append(text)
+
+    def get_text(self) -> str:
+        return " ".join(self._text_parts)
+
+
+def _extract_visible_text(html: str) -> str:
+    parser = _TextExtractor()
+    parser.feed(html)
+    return parser.get_text()
+
+
+def _find_meta_content(html: str, properties: list[str]) -> str:
+    """Extract content from <meta> tags by property or name."""
+    for prop in properties:
+        # og:title, og:site_name, etc.
+        pattern = rf'<meta\s+(?:[^>]*?)(?:property|name)\s*=\s*["\']?{re.escape(prop)}["\']?\s+content\s*=\s*["\']([^"\']+)["\']'
+        match = re.search(pattern, html, re.IGNORECASE)
+        if match:
+            return match.group(1).strip()
+        # Content before property (some sites flip the order)
+        pattern2 = rf'<meta\s+content\s*=\s*["\']([^"\']+)["\']\s+(?:property|name)\s*=\s*["\']?{re.escape(prop)}["\']?'
+        match2 = re.search(pattern2, html, re.IGNORECASE)
+        if match2:
+            return match2.group(1).strip()
     return ""
+
+
+def _find_tag_text(html: str, pattern: str) -> str:
+    """Extract text content from a tag matching a regex pattern."""
+    match = re.search(pattern, html, re.IGNORECASE | re.DOTALL)
+    if match:
+        inner = match.group(1)
+        clean = re.sub(r"<[^>]+>", "", inner).strip()
+        return clean
+    return ""
+
+
+def _extract_linkedin(html: str, url: str) -> tuple[str, str, Optional[str]]:
+    title = (
+        _find_meta_content(html, ["og:title"])
+        or _find_tag_text(html, r'<h1[^>]*>(.*?)</h1>')
+    )
+    # og:title on LinkedIn is often "Job Title - Company | LinkedIn"
+    if " - " in title and "|" in title:
+        parts = title.split(" - ", 1)
+        title = parts[0].strip()
+
+    company = _find_meta_content(html, ["og:description"])
+    # og:description often starts with company name
+    if company and " is hiring" in company.lower():
+        company = company.split(" is hiring")[0].strip()
+    elif company and " posted" in company.lower():
+        company = company.split(" posted")[0].strip()
+    else:
+        company = ""
+
+    posted_date = None
+    return title, company, posted_date
+
+
+def _extract_indeed(html: str, url: str) -> tuple[str, str, Optional[str]]:
+    title = (
+        _find_meta_content(html, ["og:title"])
+        or _find_tag_text(html, r'<h1[^>]*class="[^"]*[Jj]ob[Tt]itle[^"]*"[^>]*>(.*?)</h1>')
+        or _find_tag_text(html, r"<h1[^>]*>(.*?)</h1>")
+    )
+    if " - " in title:
+        title = title.split(" - ")[0].strip()
+
+    company = _find_meta_content(html, ["og:description"])
+    if company:
+        parts = company.split(" - ")
+        if len(parts) >= 2:
+            company = parts[0].strip()
+        else:
+            company = ""
+    else:
+        company = ""
+
+    posted_date = None
+    return title, company, posted_date
+
+
+def _extract_greenhouse(html: str, url: str) -> tuple[str, str, Optional[str]]:
+    title = (
+        _find_tag_text(html, r'<h1[^>]*class="[^"]*app-title[^"]*"[^>]*>(.*?)</h1>')
+        or _find_meta_content(html, ["og:title"])
+        or _find_tag_text(html, r"<h1[^>]*>(.*?)</h1>")
+    )
+    company = (
+        _find_tag_text(html, r'<span[^>]*class="[^"]*company-name[^"]*"[^>]*>(.*?)</span>')
+        or _find_meta_content(html, ["og:site_name"])
+    )
+    if not company:
+        match = re.match(r"https?://([^.]+)\.greenhouse\.io", url)
+        company = match.group(1).replace("-", " ").title() if match else ""
+
+    posted_date = None
+    return title, company, posted_date
+
+
+def _extract_lever(html: str, url: str) -> tuple[str, str, Optional[str]]:
+    title = (
+        _find_tag_text(html, r'<h2[^>]*>(.*?)</h2>')
+        or _find_meta_content(html, ["og:title"])
+        or _find_tag_text(html, r"<h1[^>]*>(.*?)</h1>")
+    )
+    company = _find_meta_content(html, ["og:site_name"])
+    if not company:
+        match = re.match(r"https?://jobs\.lever\.co/([^/]+)", url)
+        company = match.group(1).replace("-", " ").title() if match else ""
+
+    posted_date = None
+    return title, company, posted_date
+
+
+def _extract_generic(html: str, url: str) -> tuple[str, str, Optional[str]]:
+    title = (
+        _find_meta_content(html, ["og:title"])
+        or _find_tag_text(html, r"<h1[^>]*>(.*?)</h1>")
+        or _find_tag_text(html, r"<title>(.*?)</title>")
+    )
+    company = (
+        _find_meta_content(html, ["og:site_name"])
+        or ""
+    )
+    posted_date = None
+    return title, company, posted_date
 
 
 async def scrape_job_page(url: str) -> JobMetadata:
     """
-    Open a job posting URL with Playwright and extract metadata.
-    Falls back gracefully when selectors don't match.
+    Fetch a job posting URL via HTTP and extract metadata from the HTML.
+    Works on serverless — no browser required.
     """
-    if not HAS_PLAYWRIGHT:
-        raise RuntimeError(
-            "Playwright is not available in this environment. "
-            "Use manual mode to enter job details instead."
-        )
-
     platform = detect_platform(url)
 
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        try:
-            context = await browser.new_context(
-                user_agent=(
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/120.0.0.0 Safari/537.36"
-                )
-            )
-            page = await context.new_page()
-            await page.goto(url, wait_until="domcontentloaded", timeout=20000)
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        ),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
 
-            # Wait a bit for JS rendering
-            await page.wait_for_timeout(2000)
+    async with httpx.AsyncClient(
+        timeout=15.0,
+        follow_redirects=True,
+        headers=headers,
+    ) as client:
+        response = await client.get(url)
+        response.raise_for_status()
+        html = response.text
 
-            title = ""
-            company = ""
-            posted_date: Optional[str] = None
+    extractors = {
+        "linkedin": _extract_linkedin,
+        "indeed": _extract_indeed,
+        "greenhouse": _extract_greenhouse,
+        "lever": _extract_lever,
+        "unknown": _extract_generic,
+    }
 
-            if platform == "linkedin":
-                title = await _get_text(
-                    page, ".job-details-jobs-unified-top-card__job-title"
-                )
-                company = await _get_text(
-                    page, ".job-details-jobs-unified-top-card__company-name"
-                )
-                posted_date = (
-                    await _get_text(page, ".jobs-unified-top-card__posted-date")
-                    or None
-                )
+    extractor = extractors.get(platform, _extract_generic)
+    title, company, posted_date = extractor(html, url)
 
-            elif platform == "indeed":
-                title = await _get_text(page, "[data-jk]") or await _get_text(
-                    page, "h1.jobsearch-JobInfoHeader-title"
-                )
-                company = await _get_text(
-                    page, ".jobsearch-InlineCompanyRating-companyName"
-                )
-                posted_date = await _get_text(page, ".date") or None
+    # Fallback to generic extraction
+    if not title:
+        title, _, _ = _extract_generic(html, url)
 
-            elif platform == "greenhouse":
-                title = await _get_text(page, "h1.app-title")
-                company = await _get_text(page, ".company-name")
-                if not company:
-                    match = re.match(r"https?://([^.]+)\.greenhouse\.io", url)
-                    company = match.group(1).replace("-", " ").title() if match else ""
+    raw_text = _extract_visible_text(html)[:8000]
 
-            elif platform == "lever":
-                title = await _get_text(page, ".posting-headline h2")
-                match = re.match(r"https?://jobs\.lever\.co/([^/]+)", url)
-                company = match.group(1).replace("-", " ").title() if match else ""
+    logger.info(
+        f"scraper: Extracted from {platform} — title='{title[:60]}', "
+        f"company='{company}', text_length={len(raw_text)}"
+    )
 
-            # Fallbacks for title
-            if not title:
-                title = await _get_text(page, "h1")
-            if not title:
-                title = await page.title()
-
-            # Get full page text
-            raw_text = ""
-            try:
-                raw_text = await page.inner_text("body")
-                raw_text = raw_text.strip()[:8000]
-            except Exception:
-                pass
-
-            logger.info(
-                f"scraper: Extracted from {platform} — title='{title[:60]}', "
-                f"company='{company}', text_length={len(raw_text)}"
-            )
-
-            return JobMetadata(
-                url=url,
-                title=title,
-                company=company,
-                postedDate=posted_date,
-                rawText=raw_text,
-                platform=platform,
-            )
-
-        finally:
-            await browser.close()
+    return JobMetadata(
+        url=url,
+        title=title,
+        company=company,
+        postedDate=posted_date,
+        rawText=raw_text,
+        platform=platform,
+    )
