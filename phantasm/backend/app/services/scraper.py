@@ -334,22 +334,38 @@ async def scrape_job_page(url: str) -> JobMetadata:
         and scrapingbee_key != "your_key_here"
     )
 
-    try:
+    html = None
+
+    if platform in JS_HEAVY_PLATFORMS:
+        # JS-heavy sites: ScrapingBee first, direct fetch fallback
         if use_scrapingbee:
-            html = await _fetch_via_scrapingbee(url, scrapingbee_key, platform)
-        else:
-            if platform in JS_HEAVY_PLATFORMS:
-                logger.warning(
-                    f"scraper: No SCRAPINGBEE_API_KEY set — direct fetch for {platform} "
-                    "will return limited data"
-                )
+            try:
+                html = await _fetch_via_scrapingbee(url, scrapingbee_key, platform)
+            except Exception as e:
+                logger.warning(f"scraper: ScrapingBee failed for {platform}, trying direct: {e}")
+        if not html:
+            try:
+                html = await _fetch_direct(url)
+            except Exception as e:
+                logger.error(f"scraper: Direct fetch also failed for {url}: {e}")
+                raise RuntimeError(f"Failed to fetch page: {e}")
+    else:
+        # Non-JS sites: direct fetch first (faster/cheaper), ScrapingBee fallback
+        try:
             html = await _fetch_direct(url)
-    except httpx.HTTPStatusError as e:
-        logger.error(f"scraper: HTTP {e.response.status_code} fetching {url}")
-        raise RuntimeError(f"Failed to fetch page (HTTP {e.response.status_code})")
-    except Exception as e:
-        logger.error(f"scraper: Error fetching {url}: {e}")
-        raise
+        except Exception as e:
+            logger.warning(f"scraper: Direct fetch failed for {platform}, trying ScrapingBee: {e}")
+            if use_scrapingbee:
+                try:
+                    html = await _fetch_via_scrapingbee(url, scrapingbee_key, platform)
+                except Exception as e2:
+                    logger.error(f"scraper: ScrapingBee also failed for {url}: {e2}")
+                    raise RuntimeError(f"Failed to fetch page: {e2}")
+            else:
+                raise RuntimeError(f"Failed to fetch page: {e}")
+
+    if not html:
+        raise RuntimeError("Failed to fetch page: no HTML returned")
 
     extractors = {
         "linkedin": _extract_linkedin,
