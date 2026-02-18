@@ -4,6 +4,7 @@ Routes through ScrapingBee for JS-heavy sites (LinkedIn, Indeed).
 Falls back to direct httpx when no API key is set.
 """
 
+import json
 import logging
 import os
 import re
@@ -101,10 +102,27 @@ async def _fetch_via_scrapingbee(
 
     if platform in JS_HEAVY_PLATFORMS:
         params["premium_proxy"] = "true"
+        params["wait"] = "5000"
+
+    if platform == "linkedin":
+        params["js_scenario"] = json.dumps({
+            "instructions": [
+                {"wait": 3000},
+                {"click": ".jobs-description__footer-button"},
+                {"wait": 1000},
+                {"click": "button[aria-label='Show more']"},
+                {"wait": 1000},
+            ]
+        })
+        params["wait_for"] = ".jobs-description-content__text, .description__text, .show-more-less-html"
+
+    if platform == "indeed":
+        params["wait"] = "3000"
+        params["wait_for"] = "#jobDescriptionText"
 
     logger.info(f"scraper: Fetching via ScrapingBee (platform={platform}, premium={platform in JS_HEAVY_PLATFORMS})")
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=45.0) as client:
         response = await client.get(SCRAPINGBEE_URL, params=params)
         response.raise_for_status()
         return response.text
@@ -256,6 +274,43 @@ def _extract_generic(html: str, url: str) -> tuple[str, str, Optional[str]]:
     return title, company, posted_date
 
 
+def _extract_description_block(html: str, platform: str) -> str:
+    """
+    Try to extract just the job description section from platform-specific
+    containers. Falls back to full page text if no container found.
+    """
+    description_selectors = {
+        "linkedin": [
+            r'<div[^>]*class="[^"]*jobs-description-content__text[^"]*"[^>]*>(.*?)</div>',
+            r'<div[^>]*class="[^"]*description__text[^"]*"[^>]*>(.*?)</div>',
+            r'<div[^>]*class="[^"]*show-more-less-html__markup[^"]*"[^>]*>(.*?)</div>',
+            r'<article[^>]*class="[^"]*jobs-description__container[^"]*"[^>]*>(.*?)</article>',
+        ],
+        "indeed": [
+            r'<div[^>]*id="jobDescriptionText"[^>]*>(.*?)</div>',
+            r'<div[^>]*class="[^"]*jobsearch-JobComponent-description[^"]*"[^>]*>(.*?)</div>',
+        ],
+        "greenhouse": [
+            r'<div[^>]*id="content"[^>]*>(.*?)</div>',
+        ],
+        "lever": [
+            r'<div[^>]*class="[^"]*posting-page[^"]*"[^>]*>(.*?)</div>',
+        ],
+    }
+
+    selectors = description_selectors.get(platform, [])
+    for selector in selectors:
+        match = re.search(selector, html, re.IGNORECASE | re.DOTALL)
+        if match:
+            inner = match.group(1)
+            clean = re.sub(r"<[^>]+>", " ", inner)
+            clean = re.sub(r"\s+", " ", clean).strip()
+            if len(clean) > 100:
+                return clean
+
+    return ""
+
+
 async def scrape_job_page(url: str) -> JobMetadata:
     """
     Fetch a job posting URL and extract metadata from the HTML.
@@ -301,7 +356,11 @@ async def scrape_job_page(url: str) -> JobMetadata:
     if not title:
         title, _, _ = _extract_generic(html, url)
 
-    raw_text = _extract_visible_text(html)[:8000]
+    # Prefer focused description block over full page text
+    raw_text = _extract_description_block(html, platform)
+    if not raw_text or len(raw_text) < 100:
+        raw_text = _extract_visible_text(html)
+    raw_text = raw_text[:8000]
 
     logger.info(
         f"scraper: Extracted from {platform} — title='{title[:60]}', "
