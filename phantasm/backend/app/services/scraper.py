@@ -106,6 +106,7 @@ async def _fetch_via_scrapingbee(
 
     if platform == "linkedin":
         params["js_scenario"] = json.dumps({
+            "strict": False,
             "instructions": [
                 {"wait": 2000},
                 {"click": ".jobs-description__footer-button"},
