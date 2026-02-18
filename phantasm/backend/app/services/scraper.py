@@ -4,7 +4,7 @@ Routes through ScrapingBee for JS-heavy sites (LinkedIn, Indeed).
 Falls back to direct httpx when no API key is set.
 """
 
-import html
+import html as html_mod
 import json
 import logging
 import os
@@ -67,17 +67,26 @@ def _extract_visible_text(html: str) -> str:
     return parser.get_text()
 
 
+def _unescape(text: str) -> str:
+    """Fully decode HTML entities, handling multiple layers of encoding."""
+    prev = None
+    while text != prev:
+        prev = text
+        text = html_mod.unescape(text)
+    return text
+
+
 def _find_meta_content(raw_html: str, properties: list[str]) -> str:
     """Extract content from <meta> tags by property or name."""
     for prop in properties:
         pattern = rf'<meta\s+(?:[^>]*?)(?:property|name)\s*=\s*["\']?{re.escape(prop)}["\']?\s+content\s*=\s*["\']([^"\']+)["\']'
         match = re.search(pattern, raw_html, re.IGNORECASE)
         if match:
-            return html.unescape(match.group(1).strip())
+            return _unescape(match.group(1).strip())
         pattern2 = rf'<meta\s+content\s*=\s*["\']([^"\']+)["\']\s+(?:property|name)\s*=\s*["\']?{re.escape(prop)}["\']?'
         match2 = re.search(pattern2, raw_html, re.IGNORECASE)
         if match2:
-            return html.unescape(match2.group(1).strip())
+            return _unescape(match2.group(1).strip())
     return ""
 
 
@@ -87,7 +96,7 @@ def _find_tag_text(raw_html: str, pattern: str) -> str:
     if match:
         inner = match.group(1)
         clean = re.sub(r"<[^>]+>", "", inner).strip()
-        return html.unescape(clean)
+        return _unescape(clean)
     return ""
 
 
