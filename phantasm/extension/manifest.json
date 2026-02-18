@@ -9,7 +9,9 @@
     "https://indeed.com/*",
     "https://www.indeed.com/*",
     "https://*.greenhouse.io/*",
-    "https://*.lever.co/*"
+    "https://*.lever.co/*",
+    "https://www.doesthisjobexist.com/*",
+    "http://localhost:8000/*"
   ],
   "background": {
     "service_worker": "background/service-worker.js",
