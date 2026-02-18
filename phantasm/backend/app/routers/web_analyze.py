@@ -43,16 +43,10 @@ async def scrape_and_analyze(request: ScrapeAndAnalyzeRequest) -> AnalysisResult
         return AnalysisResult(
             jobUrl=request.url,
             ghostScore=GhostScore(score=0, label="safe", color="green"),
-            redFlags=[
-                RedFlag(
-                    type="parity",
-                    message=f"Could not scrape page: {str(e)[:120]}. Try manual mode.",
-                    severity="low",
-                )
-            ],
+            redFlags=[],
             analyzedAt=datetime.now(timezone.utc).isoformat(),
-            companyName="Unknown",
-            jobTitle="Unknown",
+            companyName="",
+            jobTitle="Could not auto-scrape — use manual mode",
         )
 
     analyze_request = AnalyzeRequest(url=request.url, metadata=metadata)
