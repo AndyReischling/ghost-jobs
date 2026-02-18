@@ -102,23 +102,21 @@ async def _fetch_via_scrapingbee(
 
     if platform in JS_HEAVY_PLATFORMS:
         params["premium_proxy"] = "true"
-        params["wait"] = "5000"
+        params["wait"] = "3000"
 
     if platform == "linkedin":
         params["js_scenario"] = json.dumps({
             "instructions": [
-                {"wait": 3000},
+                {"wait": 2000},
                 {"click": ".jobs-description__footer-button"},
-                {"wait": 1000},
+                {"wait": 500},
                 {"click": "button[aria-label='Show more']"},
-                {"wait": 1000},
+                {"wait": 500},
             ]
         })
-        params["wait_for"] = ".jobs-description-content__text, .description__text, .show-more-less-html"
 
     if platform == "indeed":
-        params["wait"] = "3000"
-        params["wait_for"] = "#jobDescriptionText"
+        params["wait"] = "2000"
 
     logger.info(f"scraper: Fetching via ScrapingBee (platform={platform}, premium={platform in JS_HEAVY_PLATFORMS})")
 

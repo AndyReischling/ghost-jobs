@@ -39,14 +39,21 @@ async def scrape_and_analyze(request: ScrapeAndAnalyzeRequest) -> AnalysisResult
     try:
         metadata = await scrape_job_page(request.url)
     except Exception as e:
-        logger.error(f"web: Scraping failed for {request.url}: {e}")
+        error_msg = str(e)[:200]
+        logger.error(f"web: Scraping failed for {request.url}: {error_msg}")
         return AnalysisResult(
             jobUrl=request.url,
             ghostScore=GhostScore(score=0, label="safe", color="green"),
-            redFlags=[],
+            redFlags=[
+                RedFlag(
+                    type="parity",
+                    message=f"Scrape failed: {error_msg}",
+                    severity="low",
+                )
+            ],
             analyzedAt=datetime.now(timezone.utc).isoformat(),
             companyName="",
-            jobTitle="Could not auto-scrape — use manual mode",
+            jobTitle="Scrape failed — try manual mode",
         )
 
     analyze_request = AnalyzeRequest(url=request.url, metadata=metadata)
