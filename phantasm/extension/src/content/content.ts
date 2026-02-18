@@ -22,6 +22,29 @@ function getFirstMatch(...selectors: string[]): string {
   return '';
 }
 
+function parseLinkedInPageTitle(): { title: string; company: string } {
+  // document.title formats:
+  // "Company hiring Job Title in Location | LinkedIn"
+  // "Job Title | Company | LinkedIn"
+  // "Job Title - Company | LinkedIn"
+  const raw = document.title.replace(/\s*\|\s*LinkedIn\s*$/, '').trim();
+
+  if (/ hiring /i.test(raw)) {
+    const [comp, rest] = raw.split(/ hiring /i, 2);
+    const jobTitle = (rest ?? '').replace(/\s+in\s+.*$/, '').trim();
+    return { title: jobTitle, company: comp.trim() };
+  }
+  if (raw.includes(' | ')) {
+    const parts = raw.split(' | ');
+    return { title: parts[0].trim(), company: parts.slice(1).join(' | ').trim() };
+  }
+  if (raw.includes(' - ')) {
+    const parts = raw.split(' - ');
+    return { title: parts[0].trim(), company: parts.slice(1).join(' - ').trim() };
+  }
+  return { title: raw, company: '' };
+}
+
 function extractJobMetadata(): JobMetadata {
   const platform = detectPlatform();
   const url = window.location.href;
@@ -53,6 +76,12 @@ function extractJobMetadata(): JobMetadata {
         '[class*="company-name"]',
         '[class*="companyName"]',
       );
+      // Fallback: parse document.title which is always available
+      if (!title || !company) {
+        const parsed = parseLinkedInPageTitle();
+        if (!title) title = parsed.title;
+        if (!company) company = parsed.company;
+      }
       postedDate = getFirstMatch(
         '.jobs-unified-top-card__posted-date',
         '[class*="posted-date"]',
