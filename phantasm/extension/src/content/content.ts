@@ -22,60 +22,6 @@ function getFirstMatch(...selectors: string[]): string {
   return '';
 }
 
-function expandLinkedInDescription(): void {
-  const showMoreButtons = [
-    '.jobs-description__footer-button',
-    'button[aria-label="Show more"]',
-    'button[aria-label="Show more, visually expands previously read content above"]',
-    '.show-more-less-html__button--more',
-    '[class*="show-more"]',
-  ];
-  for (const sel of showMoreButtons) {
-    const btn = document.querySelector(sel) as HTMLElement | null;
-    if (btn) {
-      btn.click();
-      break;
-    }
-  }
-}
-
-function extractDescriptionText(platform: Platform): string {
-  if (platform === 'linkedin') {
-    expandLinkedInDescription();
-  }
-
-  const descriptionSelectors: Record<string, string[]> = {
-    linkedin: [
-      '.jobs-description-content__text',
-      '.description__text',
-      '.show-more-less-html__markup',
-      '.jobs-description__container',
-      '[class*="jobs-description"]',
-    ],
-    indeed: [
-      '#jobDescriptionText',
-      '.jobsearch-JobComponent-description',
-      '[class*="jobDescription"]',
-    ],
-    greenhouse: [
-      '#content',
-      '.content',
-    ],
-    lever: [
-      '.posting-page',
-      '.section-wrapper',
-    ],
-  };
-
-  const selectors = descriptionSelectors[platform] ?? [];
-  for (const sel of selectors) {
-    const el = document.querySelector(sel) as HTMLElement | null;
-    const text = el?.innerText?.trim() ?? '';
-    if (text.length > 200) return text;
-  }
-  return '';
-}
-
 function extractJobMetadata(): JobMetadata {
   const platform = detectPlatform();
   const url = window.location.href;
@@ -146,12 +92,7 @@ function extractJobMetadata(): JobMetadata {
       break;
   }
 
-  // Extract focused job description, fall back to full page text
-  let rawText = extractDescriptionText(platform);
-  if (!rawText || rawText.length < 500) {
-    rawText = document.body.innerText.trim();
-  }
-  rawText = rawText.slice(0, 8000);
+  const rawText = document.body.innerText.trim().slice(0, 8000);
 
   return { url, title, company, postedDate, rawText, platform };
 }
