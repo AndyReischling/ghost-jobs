@@ -4,6 +4,7 @@ Routes through ScrapingBee for JS-heavy sites (LinkedIn, Indeed).
 Falls back to direct httpx when no API key is set.
 """
 
+import html
 import json
 import logging
 import os
@@ -66,27 +67,27 @@ def _extract_visible_text(html: str) -> str:
     return parser.get_text()
 
 
-def _find_meta_content(html: str, properties: list[str]) -> str:
+def _find_meta_content(raw_html: str, properties: list[str]) -> str:
     """Extract content from <meta> tags by property or name."""
     for prop in properties:
         pattern = rf'<meta\s+(?:[^>]*?)(?:property|name)\s*=\s*["\']?{re.escape(prop)}["\']?\s+content\s*=\s*["\']([^"\']+)["\']'
-        match = re.search(pattern, html, re.IGNORECASE)
+        match = re.search(pattern, raw_html, re.IGNORECASE)
         if match:
-            return match.group(1).strip()
+            return html.unescape(match.group(1).strip())
         pattern2 = rf'<meta\s+content\s*=\s*["\']([^"\']+)["\']\s+(?:property|name)\s*=\s*["\']?{re.escape(prop)}["\']?'
-        match2 = re.search(pattern2, html, re.IGNORECASE)
+        match2 = re.search(pattern2, raw_html, re.IGNORECASE)
         if match2:
-            return match2.group(1).strip()
+            return html.unescape(match2.group(1).strip())
     return ""
 
 
-def _find_tag_text(html: str, pattern: str) -> str:
+def _find_tag_text(raw_html: str, pattern: str) -> str:
     """Extract text content from a tag matching a regex pattern."""
-    match = re.search(pattern, html, re.IGNORECASE | re.DOTALL)
+    match = re.search(pattern, raw_html, re.IGNORECASE | re.DOTALL)
     if match:
         inner = match.group(1)
         clean = re.sub(r"<[^>]+>", "", inner).strip()
-        return clean
+        return html.unescape(clean)
     return ""
 
 
