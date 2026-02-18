@@ -50,6 +50,32 @@ function parseLinkedInPageTitle(): { title: string; company: string } {
   return { title: raw, company: '' };
 }
 
+function extractJsonLd(): { title: string; company: string; datePosted: string | null } {
+  const result = { title: '', company: '', datePosted: null as string | null };
+  const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+
+  for (const script of scripts) {
+    try {
+      const data = JSON.parse(script.textContent ?? '');
+      const candidates = Array.isArray(data) ? data
+        : data?.['@graph'] ? (Array.isArray(data['@graph']) ? data['@graph'] : [data['@graph']])
+        : [data];
+
+      for (const obj of candidates) {
+        const objType = Array.isArray(obj?.['@type']) ? obj['@type'].join(' ') : (obj?.['@type'] ?? '');
+        if (!objType.includes('JobPosting')) continue;
+
+        result.title = obj.title ?? '';
+        const org = obj.hiringOrganization;
+        result.company = typeof org === 'string' ? org : (org?.name ?? '');
+        result.datePosted = obj.datePosted ?? null;
+        return result;
+      }
+    } catch { /* skip malformed JSON-LD */ }
+  }
+  return result;
+}
+
 function extractJobMetadata(): JobMetadata {
   const platform = detectPlatform();
   const url = window.location.href;
@@ -57,73 +83,78 @@ function extractJobMetadata(): JobMetadata {
   let company = '';
   let postedDate: string | null = null;
 
-  switch (platform) {
-    case 'linkedin':
-      title = getFirstMatch(
-        '.job-details-jobs-unified-top-card__job-title',
-        '.jobs-unified-top-card__job-title',
-        '.t-24.t-bold.inline',
-        '.job-details-jobs-unified-top-card__job-title a',
-        '.jobs-unified-top-card__job-title a',
-        'h1.t-24',
-        'h1.t-20',
-        'h1',
-        '.job-title',
-        '[class*="jobTitle"]',
-        '[class*="job-title"]',
-      );
-      company = getFirstMatch(
-        '.job-details-jobs-unified-top-card__company-name',
-        '.jobs-unified-top-card__company-name',
-        '.job-details-jobs-unified-top-card__company-name a',
-        '.jobs-unified-top-card__company-name a',
-        '.artdeco-entity-lockup__subtitle',
-        '[class*="company-name"]',
-        '[class*="companyName"]',
-      );
-      // Fallback: parse document.title which is always available
-      if (!title || !company) {
+  // Layer 1: JSON-LD structured data (most stable — SEO standard)
+  const jsonLd = extractJsonLd();
+  title = jsonLd.title;
+  company = jsonLd.company;
+  postedDate = jsonLd.datePosted;
+
+  // Layer 2: Platform-specific extraction (fills gaps)
+  if (!title || !company) {
+    switch (platform) {
+      case 'linkedin': {
+        // Prefer document.title parsing (stable) over DOM selectors (fragile)
         const parsed = parseLinkedInPageTitle();
         if (!title) title = parsed.title;
         if (!company) company = parsed.company;
+        // DOM selectors as last resort
+        if (!title) {
+          title = getFirstMatch(
+            '.job-details-jobs-unified-top-card__job-title',
+            '.jobs-unified-top-card__job-title',
+            'h1',
+          );
+        }
+        if (!company) {
+          company = getFirstMatch(
+            '.job-details-jobs-unified-top-card__company-name',
+            '.jobs-unified-top-card__company-name',
+          );
+        }
+        if (!postedDate) {
+          postedDate = getFirstMatch(
+            '.jobs-unified-top-card__posted-date',
+            '[class*="posted-date"]',
+          ) || null;
+        }
+        break;
       }
-      postedDate = getFirstMatch(
-        '.jobs-unified-top-card__posted-date',
-        '[class*="posted-date"]',
-        '.job-details-jobs-unified-top-card__primary-description-container span',
-      ) || null;
-      break;
 
-    case 'indeed':
-      title = getFirstMatch(
-        'h1.jobsearch-JobInfoHeader-title',
-        '[data-jk]',
-        'h1[class*="JobTitle"]',
-        'h1',
-      );
-      company = getFirstMatch(
-        '.jobsearch-InlineCompanyRating-companyName',
-        '[data-company-name]',
-        '[class*="CompanyName"]',
-      );
-      postedDate = getFirstMatch('.date', '[class*="posted"]') || null;
-      break;
+      case 'indeed':
+        if (!title) {
+          title = getFirstMatch(
+            'h1.jobsearch-JobInfoHeader-title',
+            'h1[class*="JobTitle"]',
+            'h1',
+          );
+        }
+        if (!company) {
+          company = getFirstMatch(
+            '.jobsearch-InlineCompanyRating-companyName',
+            '[data-company-name]',
+          );
+        }
+        if (!postedDate) {
+          postedDate = getFirstMatch('.date', '[class*="posted"]') || null;
+        }
+        break;
 
-    case 'greenhouse':
-      title = getFirstMatch('h1.app-title', 'h1');
-      company =
-        getFirstMatch('.company-name') ||
-        window.location.hostname.split('.')[0];
-      break;
+      case 'greenhouse':
+        if (!title) title = getFirstMatch('h1.app-title', 'h1');
+        if (!company) {
+          company = getFirstMatch('.company-name') || window.location.hostname.split('.')[0];
+        }
+        break;
 
-    case 'lever':
-      title = getFirstMatch('.posting-headline h2', 'h2');
-      company = window.location.hostname.split('.')[0];
-      break;
+      case 'lever':
+        if (!title) title = getFirstMatch('.posting-headline h2', 'h2');
+        if (!company) company = window.location.hostname.split('.')[0];
+        break;
 
-    default:
-      title = document.title;
-      break;
+      default:
+        if (!title) title = document.title;
+        break;
+    }
   }
 
   const rawText = document.body.innerText.trim().slice(0, 8000);

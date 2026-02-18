@@ -14,6 +14,12 @@ from html.parser import HTMLParser
 import httpx
 from app.schemas import JobMetadata, Platform
 
+try:
+    import anthropic
+    HAS_ANTHROPIC = True
+except ImportError:
+    HAS_ANTHROPIC = False
+
 logger = logging.getLogger(__name__)
 
 SCRAPINGBEE_URL = "https://app.scrapingbee.com/api/v1"
@@ -65,6 +71,70 @@ def _extract_visible_text(html: str) -> str:
     parser = _TextExtractor()
     parser.feed(html)
     return parser.get_text()
+
+
+def _extract_json_ld(raw_html: str) -> dict:
+    """
+    Extract Schema.org JobPosting structured data from JSON-LD blocks.
+    Returns a dict with 'title', 'company', 'description', 'datePosted'
+    keys (any may be empty). This is the most stable extraction method
+    since JSON-LD is a Google-mandated SEO standard.
+    """
+    result: dict = {"title": "", "company": "", "description": "", "datePosted": None}
+
+    blocks = re.findall(
+        r'<script[^>]*type=["\']application/ld\+json["\'][^>]*>(.*?)</script>',
+        raw_html,
+        re.IGNORECASE | re.DOTALL,
+    )
+
+    for block in blocks:
+        try:
+            data = json.loads(block.strip())
+        except (json.JSONDecodeError, ValueError):
+            continue
+
+        # Handle both single objects and @graph arrays
+        candidates = []
+        if isinstance(data, list):
+            candidates = data
+        elif isinstance(data, dict):
+            if "@graph" in data:
+                candidates = data["@graph"] if isinstance(data["@graph"], list) else [data["@graph"]]
+            else:
+                candidates = [data]
+
+        for obj in candidates:
+            if not isinstance(obj, dict):
+                continue
+            obj_type = obj.get("@type", "")
+            if isinstance(obj_type, list):
+                obj_type = " ".join(obj_type)
+            if "JobPosting" not in obj_type:
+                continue
+
+            result["title"] = _unescape(str(obj.get("title", "")))
+
+            org = obj.get("hiringOrganization", {})
+            if isinstance(org, dict):
+                result["company"] = _unescape(str(org.get("name", "")))
+            elif isinstance(org, str):
+                result["company"] = _unescape(org)
+
+            desc = obj.get("description", "")
+            if desc:
+                clean = re.sub(r"<[^>]+>", " ", str(desc))
+                result["description"] = re.sub(r"\s+", " ", clean).strip()
+
+            result["datePosted"] = obj.get("datePosted") or None
+
+            logger.info(
+                f"scraper: JSON-LD found — title='{result['title'][:60]}', "
+                f"company='{result['company']}'"
+            )
+            return result
+
+    return result
 
 
 def _unescape(text: str) -> str:
@@ -320,6 +390,36 @@ def _extract_description_block(html: str, platform: str) -> str:
     return ""
 
 
+async def _extract_via_llm(raw_text: str) -> tuple[str, str]:
+    """
+    Last-resort extraction: ask the LLM to identify the job title and
+    company from raw page text. Only called when JSON-LD, OG tags, and
+    DOM selectors all fail.
+    """
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key or api_key == "your_key_here" or not HAS_ANTHROPIC:
+        return "", ""
+
+    try:
+        client = anthropic.AsyncAnthropic(api_key=api_key)
+        message = await client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=150,
+            temperature=0,
+            system="Extract the job title and company name from this text. Return ONLY JSON: {\"title\": \"...\", \"company\": \"...\"}",
+            messages=[{"role": "user", "content": raw_text[:2000]}],
+        )
+        parsed = json.loads(message.content[0].text.strip())
+        title = str(parsed.get("title", ""))
+        company = str(parsed.get("company", ""))
+        if title or company:
+            logger.info(f"scraper: LLM extracted — title='{title[:60]}', company='{company}'")
+        return title, company
+    except Exception as e:
+        logger.warning(f"scraper: LLM extraction failed: {e}")
+        return "", ""
+
+
 async def scrape_job_page(url: str) -> JobMetadata:
     """
     Fetch a job posting URL and extract metadata from the HTML.
@@ -367,22 +467,47 @@ async def scrape_job_page(url: str) -> JobMetadata:
     if not html:
         raise RuntimeError("Failed to fetch page: no HTML returned")
 
-    extractors = {
-        "linkedin": _extract_linkedin,
-        "indeed": _extract_indeed,
-        "greenhouse": _extract_greenhouse,
-        "lever": _extract_lever,
-        "unknown": _extract_generic,
-    }
+    # Layer 1: JSON-LD structured data (most stable — SEO standard)
+    json_ld = _extract_json_ld(html)
+    title = json_ld["title"]
+    company = json_ld["company"]
+    posted_date = json_ld["datePosted"]
+    raw_text = json_ld["description"]
 
-    extractor = extractors.get(platform, _extract_generic)
-    title, company, posted_date = extractor(html, url)
+    # Layer 2: Platform-specific extractors (OG tags + DOM selectors)
+    if not title or not company:
+        extractors = {
+            "linkedin": _extract_linkedin,
+            "indeed": _extract_indeed,
+            "greenhouse": _extract_greenhouse,
+            "lever": _extract_lever,
+            "unknown": _extract_generic,
+        }
+        extractor = extractors.get(platform, _extract_generic)
+        ext_title, ext_company, ext_date = extractor(html, url)
+        if not title:
+            title = ext_title
+        if not company:
+            company = ext_company
+        if not posted_date:
+            posted_date = ext_date
 
+    # Layer 3: Generic fallback
     if not title:
         title, _, _ = _extract_generic(html, url)
 
-    # Prefer focused description block over full page text
-    raw_text = _extract_description_block(html, platform)
+    # Layer 4: LLM extraction (last resort — handles any page structure)
+    if not title or not company:
+        visible = _extract_visible_text(html)[:2000]
+        llm_title, llm_company = await _extract_via_llm(visible)
+        if not title:
+            title = llm_title
+        if not company:
+            company = llm_company
+
+    # Description: prefer JSON-LD > platform container > full page text
+    if not raw_text or len(raw_text) < 100:
+        raw_text = _extract_description_block(html, platform)
     if not raw_text or len(raw_text) < 100:
         raw_text = _extract_visible_text(html)
     raw_text = raw_text[:8000]
