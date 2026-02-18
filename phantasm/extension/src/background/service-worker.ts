@@ -77,12 +77,12 @@ async function analyzeJob(metadata: JobMetadata, tabId: number, tabUrl: string):
 }
 
 chrome.runtime.onMessage.addListener(
-  (message: { type: string; payload: JobMetadata }, sender, _sendResponse) => {
+  (message: { type: string; payload: JobMetadata }, sender, sendResponse) => {
     if (message.type === 'ANALYZE_JOB' && sender.tab?.id !== undefined) {
       const tabId = sender.tab.id;
       const tabUrl = sender.tab.url ?? message.payload.url;
       analyzeJob(message.payload, tabId, tabUrl);
+      sendResponse({ received: true });
     }
-    return true;
   }
 );
