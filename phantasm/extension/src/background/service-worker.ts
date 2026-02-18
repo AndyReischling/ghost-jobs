@@ -6,13 +6,13 @@ const API_URLS = [
   'http://localhost:8000',
 ];
 
-const DEDUP_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const DEDUP_TTL_MS = 5 * 60 * 1000;
 const recentResults = new Map<string, { result: AnalysisResult; timestamp: number }>();
+const pendingRequests = new Map<string, Promise<AnalysisResult>>();
 
 function normalizeJobUrl(url: string): string {
   try {
     const u = new URL(url);
-    // Strip tracking params, keep only the job ID path
     return u.origin + u.pathname.replace(/\/$/, '');
   } catch {
     return url;
@@ -56,19 +56,14 @@ async function tryFetch(apiUrl: string, tabUrl: string, metadata: JobMetadata): 
   return await response.json() as AnalysisResult;
 }
 
-async function analyzeJob(metadata: JobMetadata, tabId: number, tabUrl: string): Promise<void> {
-  const cacheKey = normalizeJobUrl(tabUrl);
+function deliverResult(result: AnalysisResult, tabId: number): void {
+  chrome.tabs.sendMessage(tabId, { type: 'ANALYSIS_RESULT', payload: result });
+  const badgeColor = BADGE_COLOR_MAP[result.ghostScore.color] ?? '#6b7280';
+  chrome.action.setBadgeText({ text: String(result.ghostScore.score), tabId });
+  chrome.action.setBadgeBackgroundColor({ color: badgeColor, tabId });
+}
 
-  // Return cached result if analyzed recently
-  const cached = recentResults.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < DEDUP_TTL_MS) {
-    chrome.tabs.sendMessage(tabId, { type: 'ANALYSIS_RESULT', payload: cached.result });
-    const badgeColor = BADGE_COLOR_MAP[cached.result.ghostScore.color] ?? '#6b7280';
-    chrome.action.setBadgeText({ text: String(cached.result.ghostScore.score), tabId });
-    chrome.action.setBadgeBackgroundColor({ color: badgeColor, tabId });
-    return;
-  }
-
+async function fetchAnalysis(cacheKey: string, tabUrl: string, metadata: JobMetadata): Promise<AnalysisResult> {
   let result: AnalysisResult | null = null;
 
   for (const apiUrl of API_URLS) {
@@ -86,21 +81,40 @@ async function analyzeJob(metadata: JobMetadata, tabId: number, tabUrl: string):
 
   recentResults.set(cacheKey, { result, timestamp: Date.now() });
 
-  const entry: ScanHistoryEntry = {
-    ...result,
-    id: crypto.randomUUID(),
-  };
-
+  const entry: ScanHistoryEntry = { ...result, id: crypto.randomUUID() };
   await addScanEntry(entry);
 
-  chrome.tabs.sendMessage(tabId, {
-    type: 'ANALYSIS_RESULT',
-    payload: result,
-  });
+  return result;
+}
 
-  const badgeColor = BADGE_COLOR_MAP[result.ghostScore.color] ?? '#6b7280';
-  chrome.action.setBadgeText({ text: String(result.ghostScore.score), tabId });
-  chrome.action.setBadgeBackgroundColor({ color: badgeColor, tabId });
+async function analyzeJob(metadata: JobMetadata, tabId: number, tabUrl: string): Promise<void> {
+  const cacheKey = normalizeJobUrl(tabUrl);
+
+  // Return cached result immediately
+  const cached = recentResults.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < DEDUP_TTL_MS) {
+    deliverResult(cached.result, tabId);
+    return;
+  }
+
+  // If an analysis is already in-flight for this URL, wait for it
+  const pending = pendingRequests.get(cacheKey);
+  if (pending) {
+    const result = await pending;
+    deliverResult(result, tabId);
+    return;
+  }
+
+  // Start new analysis and track the promise
+  const promise = fetchAnalysis(cacheKey, tabUrl, metadata);
+  pendingRequests.set(cacheKey, promise);
+
+  try {
+    const result = await promise;
+    deliverResult(result, tabId);
+  } finally {
+    pendingRequests.delete(cacheKey);
+  }
 }
 
 chrome.runtime.onMessage.addListener(

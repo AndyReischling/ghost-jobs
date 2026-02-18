@@ -442,20 +442,25 @@ function main(): void {
   attemptExtraction(0);
 }
 
-// Also re-trigger on LinkedIn SPA navigation (URL changes without full reload)
+// Debounced SPA navigation handler — LinkedIn changes the URL multiple
+// times during a single navigation, so we wait for it to settle.
 let lastUrl = window.location.href;
+let navDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
 const observer = new MutationObserver(() => {
   if (window.location.href !== lastUrl) {
     lastUrl = window.location.href;
-    console.log('[Phantasm] SPA navigation detected:', lastUrl);
-    // Remove old badge
-    const oldBadge = document.getElementById('phantasm-badge');
-    if (oldBadge) oldBadge.remove();
-    const oldSidebar = document.getElementById('phantasm-sidebar-container');
-    if (oldSidebar) oldSidebar.remove();
-    sidebarVisible = false;
-    // Re-extract after a short delay for new content to load
-    setTimeout(() => attemptExtraction(0), 1500);
+
+    if (navDebounceTimer) clearTimeout(navDebounceTimer);
+    navDebounceTimer = setTimeout(() => {
+      console.log('[Phantasm] SPA navigation detected:', lastUrl);
+      const oldBadge = document.getElementById('phantasm-badge');
+      if (oldBadge) oldBadge.remove();
+      const oldSidebar = document.getElementById('phantasm-sidebar-container');
+      if (oldSidebar) oldSidebar.remove();
+      sidebarVisible = false;
+      attemptExtraction(0);
+    }, 2000);
   }
 });
 observer.observe(document.body, { childList: true, subtree: true });
