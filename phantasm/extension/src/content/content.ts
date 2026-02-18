@@ -403,10 +403,53 @@ function sendForAnalysis(metadata: JobMetadata): void {
   );
 }
 
+function detectClosedListing(): string | null {
+  const closedSignals = [
+    'No longer accepting applications',
+    'This job is no longer available',
+    'This job has expired',
+    'Application closed',
+    'Position has been filled',
+    'This posting has been closed',
+  ];
+  const bodyText = document.body.innerText;
+  for (const signal of closedSignals) {
+    if (bodyText.includes(signal)) return signal;
+  }
+  return null;
+}
+
+function createClosedResult(metadata: JobMetadata, reason: string): AnalysisResult {
+  return {
+    jobUrl: metadata.url,
+    ghostScore: { score: 85, label: 'ghost', color: 'red' },
+    redFlags: [
+      { type: 'age', message: `Listing is closed: "${reason}"`, severity: 'high' },
+      { type: 'sentiment', message: 'Closed listings that remain indexed may indicate ghost postings or talent pipeline collection', severity: 'medium' },
+    ],
+    analyzedAt: new Date().toISOString(),
+    companyName: metadata.company,
+    jobTitle: metadata.title,
+  };
+}
+
 function attemptExtraction(retryCount: number): void {
   const metadata = extractJobMetadata();
 
   console.log(`[Phantasm] Extraction attempt ${retryCount + 1}: title="${metadata.title}", company="${metadata.company}"`);
+
+  // Detect closed/expired listings immediately
+  const closedReason = detectClosedListing();
+  if (closedReason && (metadata.title || metadata.company)) {
+    console.log(`[Phantasm] Closed listing detected: "${closedReason}"`);
+    const result = createClosedResult(metadata, closedReason);
+    injectGhostMeter(result);
+    chrome.runtime.sendMessage(
+      { type: 'CLOSED_LISTING', payload: result },
+      () => { void chrome.runtime.lastError; }
+    );
+    return;
+  }
 
   if (metadata.title || metadata.company) {
     sendForAnalysis(metadata);

@@ -118,11 +118,21 @@ async function analyzeJob(metadata: JobMetadata, tabId: number, tabUrl: string):
 }
 
 chrome.runtime.onMessage.addListener(
-  (message: { type: string; payload: JobMetadata }, sender, sendResponse) => {
+  (message: { type: string; payload: JobMetadata | AnalysisResult }, sender, sendResponse) => {
     if (message.type === 'ANALYZE_JOB' && sender.tab?.id !== undefined) {
       const tabId = sender.tab.id;
-      const tabUrl = sender.tab.url ?? message.payload.url;
-      analyzeJob(message.payload, tabId, tabUrl);
+      const tabUrl = sender.tab.url ?? (message.payload as JobMetadata).url;
+      analyzeJob(message.payload as JobMetadata, tabId, tabUrl);
+      sendResponse({ received: true });
+    }
+
+    if (message.type === 'CLOSED_LISTING' && sender.tab?.id !== undefined) {
+      const result = message.payload as AnalysisResult;
+      const entry: ScanHistoryEntry = { ...result, id: crypto.randomUUID() };
+      addScanEntry(entry);
+      const badgeColor = BADGE_COLOR_MAP[result.ghostScore.color] ?? '#6b7280';
+      chrome.action.setBadgeText({ text: String(result.ghostScore.score), tabId: sender.tab.id });
+      chrome.action.setBadgeBackgroundColor({ color: badgeColor, tabId: sender.tab.id });
       sendResponse({ received: true });
     }
   }
