@@ -8,6 +8,7 @@ from app.services.financial_health import financial_health_check
 from app.services.llm_analysis import llm_analysis, llm_deep_analysis
 from app.services.heuristic_analysis import heuristic_analysis
 from app.services.company_intel import company_intel
+from app.services.heuristic_analysis import has_salary_in_text
 from app.scoring.ghost_score import calculate_ghost_score
 
 router = APIRouter()
@@ -50,7 +51,16 @@ async def analyze_job(request: AnalyzeRequest) -> AnalysisResult:
             all_extra_signals.extend(company_results)
 
         if not isinstance(llm_deep_results, Exception) and llm_deep_results:
-            all_extra_signals.extend(llm_deep_results)
+            # Filter out "no salary" LLM flags when salary is actually present in the text
+            raw_text = request.metadata.rawText or ""
+            salary_present = has_salary_in_text(raw_text)
+            for h_delta, h_flag in llm_deep_results:
+                if h_flag and salary_present:
+                    msg_lower = h_flag.message.lower()
+                    no_salary_phrases = ("no salary", "no compensation", "no salary range", "no compensation information")
+                    if any(p in msg_lower for p in no_salary_phrases):
+                        continue  # Skip conflicting flag — heuristic found salary
+                all_extra_signals.append((h_delta, h_flag))
 
         result = calculate_ghost_score(
             metadata=request.metadata,

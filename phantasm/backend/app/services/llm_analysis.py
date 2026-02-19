@@ -34,7 +34,8 @@ redFlags: List specific concerns you notice. Examples:
 - "Title doesn't match the described responsibilities"
 - "Sounds like compliance hiring (posting for legal/visa reasons with a pre-selected candidate)"
 
-Keep redFlags to 3 items max. Only include genuine concerns, not generic observations."""
+Keep redFlags to 3 items max. Only include genuine concerns, not generic observations.
+Only flag missing salary/compensation if you have searched the ENTIRE provided text and found NO dollar amounts, salary ranges, or compensation figures. If any pay information exists, do NOT include a salary-related red flag."""
 
 
 def _parse_llm_response(text: str) -> dict:
@@ -63,7 +64,7 @@ async def llm_analysis(
     if not raw_text:
         return 0, None
 
-    truncated_text = raw_text[:4000]
+    truncated_text = raw_text[:6000]  # More context so salary (often near end) is included
 
     try:
         client = anthropic.AsyncAnthropic(api_key=api_key)
@@ -140,7 +141,7 @@ async def llm_deep_analysis(
     if not raw_text:
         return []
 
-    truncated_text = raw_text[:4000]
+    truncated_text = raw_text[:6000]  # More context so salary (often near end) is included
     results: list[tuple[int, Optional[RedFlag]]] = []
 
     try:

@@ -50,8 +50,8 @@ function parseLinkedInPageTitle(): { title: string; company: string } {
   return { title: raw, company: '' };
 }
 
-function extractJsonLd(): { title: string; company: string; datePosted: string | null } {
-  const result = { title: '', company: '', datePosted: null as string | null };
+function extractJsonLd(): { title: string; company: string; datePosted: string | null; salaryText: string } {
+  const result = { title: '', company: '', datePosted: null as string | null, salaryText: '' };
   const scripts = document.querySelectorAll('script[type="application/ld+json"]');
 
   for (const script of scripts) {
@@ -69,6 +69,28 @@ function extractJsonLd(): { title: string; company: string; datePosted: string |
         const org = obj.hiringOrganization;
         result.company = typeof org === 'string' ? org : (org?.name ?? '');
         result.datePosted = obj.datePosted ?? null;
+        // Extract salary from baseSalary (schema.org JobPosting — formats vary)
+        const baseSalary = obj.baseSalary;
+        if (baseSalary) {
+          if (typeof baseSalary === 'string') {
+            result.salaryText = baseSalary;
+          } else {
+            const value = baseSalary.value;
+            const price = baseSalary.price ?? baseSalary.priceRange;
+            if (value) {
+              const min = value.minValue ?? value.value;
+              const max = value.maxValue ?? value.value;
+              const unit = (value.unitText ?? 'YEAR').toLowerCase();
+              if (min !== undefined && max !== undefined && min !== max) {
+                result.salaryText = `Salary range: $${min}-$${max} per ${unit}`;
+              } else if (min !== undefined || max !== undefined) {
+                result.salaryText = `Salary: $${min ?? max} per ${unit}`;
+              }
+            } else if (price) {
+              result.salaryText = `Salary: ${price}`;
+            }
+          }
+        }
         return result;
       }
     } catch { /* skip malformed JSON-LD */ }
@@ -157,7 +179,11 @@ function extractJobMetadata(): JobMetadata {
     }
   }
 
-  const rawText = document.body.innerText.trim().slice(0, 8000);
+  let rawText = document.body.innerText.trim().slice(0, 8000);
+  // Prepend salary from JSON-LD when present (structured data often not in visible body text)
+  if (jsonLd.salaryText) {
+    rawText = `${jsonLd.salaryText}\n\n${rawText}`;
+  }
 
   return { url, title, company, postedDate, rawText, platform };
 }

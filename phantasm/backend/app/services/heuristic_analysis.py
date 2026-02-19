@@ -181,6 +181,19 @@ def _word_count(text: str) -> int:
     return len(text.split())
 
 
+def has_salary_in_text(text: str) -> bool:
+    """Check if text contains any salary/compensation numbers or range."""
+    if not text:
+        return False
+    # Dollar amounts: $50k, $100,000, $75-90k, etc.
+    if re.search(r"\$\s*[\d,]+(?:\s*(?:k|K|,000))?(?:\s*(?:-|to|–)\s*\$\s*[\d,]+)?", text):
+        return True
+    # Salary range phrases with numbers
+    if re.search(r"(?:salary|compensation|pay)\s*(?:range|:)?\s*[\d,]+", text.lower()):
+        return True
+    return False
+
+
 def _detect_salary_issues(text: str) -> list[tuple[int, Optional[RedFlag]]]:
     """Analyze compensation transparency and realism."""
     results: list[tuple[int, Optional[RedFlag]]] = []

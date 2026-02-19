@@ -13,7 +13,10 @@ export async function getScanHistory(): Promise<ScanHistoryEntry[]> {
 
 export async function addScanEntry(entry: ScanHistoryEntry): Promise<void> {
   const history = await getScanHistory();
-  const updated = [entry, ...history].slice(0, MAX_ENTRIES);
+  // Deduplicate by jobUrl: replace existing entry with same URL (keep latest result)
+  const normalizedUrl = entry.jobUrl.replace(/\/$/, '');
+  const filtered = history.filter((e) => e.jobUrl.replace(/\/$/, '') !== normalizedUrl);
+  const updated = [entry, ...filtered].slice(0, MAX_ENTRIES);
   return new Promise((resolve) => {
     chrome.storage.local.set({ [HISTORY_KEY]: updated }, resolve);
   });

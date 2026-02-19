@@ -6,7 +6,7 @@ const API_URLS = [
   'http://localhost:8000',
 ];
 
-const DEDUP_TTL_MS = 5 * 60 * 1000;
+const DEDUP_TTL_MS = 30 * 60 * 1000; // 30 min — reduces re-analysis and score variance for same job
 const recentResults = new Map<string, { result: AnalysisResult; timestamp: number }>();
 const pendingRequests = new Map<string, Promise<AnalysisResult>>();
 
