@@ -793,6 +793,9 @@
       <button class="btn btn-primary" id="analyze-btn" style="width: 100%; margin-top: 8px;" onclick="analyzeManual()">
         Analyze This Job
       </button>
+      <p style="text-align: center; font-size: 12px; color: var(--text-tertiary); margin-top: 12px;">
+        Only a job title or company is needed to start — the more you fill in, the more accurate the score.
+      </p>
 
       <div class="error-banner" id="error-banner"></div>
     </div>
@@ -939,8 +942,8 @@ async function analyzeManual() {
   const company = document.getElementById('manual-company').value.trim();
   const rawText = document.getElementById('manual-desc').value.trim();
 
-  if (!title || !company || !rawText) {
-    showError('Please fill in job title, company, and description.');
+  if (!title && !company && !rawText) {
+    showError('Please fill in at least a job title or company name to get started.');
     return;
   }
 

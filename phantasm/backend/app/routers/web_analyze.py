@@ -24,9 +24,9 @@ class ScrapeAndAnalyzeRequest(BaseModel):
 
 class ManualAnalyzeRequest(BaseModel):
     url: str = "https://manual-entry"
-    title: str
-    company: str
-    rawText: str
+    title: str = ""
+    company: str = ""
+    rawText: str = ""
     postedDate: Optional[str] = None
     platform: str = "unknown"
     salaryRange: Optional[str] = None
