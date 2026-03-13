@@ -25,8 +25,8 @@ function getFirstMatch(...selectors: string[]): string {
 function isLinkedInJobPage(): boolean {
   // Match /jobs/view/123 or /jobs/view/job-title-slug-123456 (LinkedIn uses both formats)
   if (/\/jobs\/view\//.test(window.location.pathname)) return true;
-  // Match /jobs/search/?currentJobId=... (job detail in right panel)
-  if (/\/jobs\/search\//.test(window.location.pathname) && /currentJobId=/.test(window.location.search)) return true;
+  // Match /jobs/search/?currentJobId=... or /jobs/collections/.../?currentJobId=... (job detail in panel)
+  if (/\/jobs\/(search|collections)\//.test(window.location.pathname) && /currentJobId=/.test(window.location.search)) return true;
   return false;
 }
 

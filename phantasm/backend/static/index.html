@@ -243,19 +243,11 @@
       border-radius: 20px;
       padding: 40px;
       width: 100%;
-      max-width: 620px;
+      max-width: 720px;
       box-shadow: 0 1px 2px rgba(0,0,0,0.03), 0 8px 32px rgba(0,0,0,0.04);
     }
 
     /* ─── Form ─── */
-    .input-group {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 4px;
-    }
-    .input-group input {
-      flex: 1;
-    }
     input, textarea, select {
       font-family: inherit;
       font-size: 15px;
@@ -268,6 +260,7 @@
       outline: none;
       transition: border-color 0.25s ease, box-shadow 0.25s ease;
       width: 100%;
+      -webkit-appearance: none;
     }
     input:focus, textarea:focus, select:focus {
       border-color: var(--chartreuse);
@@ -278,7 +271,7 @@
     }
     textarea {
       resize: vertical;
-      min-height: 120px;
+      min-height: 160px;
       line-height: 1.6;
     }
 
@@ -317,35 +310,25 @@
       box-shadow: none;
     }
 
-    .divider-line {
-      text-align: center;
-      margin: 20px 0;
-      cursor: pointer;
-      user-select: none;
-    }
-    .divider-line-text {
-      font-size: 13px;
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
       color: var(--text-tertiary);
-      transition: color 0.2s;
-      border-bottom: 1px dashed var(--border);
-      padding-bottom: 1px;
-    }
-    .divider-line:hover .divider-line-text { color: var(--text-secondary); }
-
-    .manual-fields {
-      max-height: 0;
-      overflow: hidden;
-      transition: max-height 0.4s ease, opacity 0.3s ease;
-      opacity: 0;
-    }
-    .manual-fields.open {
-      max-height: 500px;
-      opacity: 1;
+      margin-bottom: 14px;
+      margin-top: 8px;
     }
 
     .field-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .field-row-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
       gap: 10px;
       margin-bottom: 10px;
     }
@@ -361,6 +344,14 @@
     }
     .field { margin-bottom: 14px; }
 
+    .optional-tag {
+      font-weight: 400;
+      color: var(--text-tertiary);
+      text-transform: none;
+      letter-spacing: 0;
+      font-size: 11px;
+    }
+
     /* ─── Loading Spinner ─── */
     .spinner {
       width: 18px; height: 18px;
@@ -374,7 +365,7 @@
     /* ─── Results ─── */
     .results {
       width: 100%;
-      max-width: 620px;
+      max-width: 720px;
       margin-top: 32px;
       opacity: 0;
       transform: translateY(24px);
@@ -562,10 +553,13 @@
       .header h1 { font-size: 36px; letter-spacing: 4px; }
       .header p { font-size: 15px; }
       .card { padding: 28px 20px; border-radius: 16px; }
-      .input-group { flex-direction: column; }
       .score-card { padding: 32px 20px; }
       .field-row { grid-template-columns: 1fr; }
+      .field-row-3 { grid-template-columns: 1fr; }
       .legend { flex-direction: column; align-items: center; gap: 12px; }
+    }
+    @media (min-width: 641px) and (max-width: 800px) {
+      .field-row-3 { grid-template-columns: 1fr 1fr; }
     }
   </style>
 </head>
@@ -605,45 +599,91 @@
 
     <!-- Input Card -->
     <div class="card">
-      <div class="field">
-        <label for="url-input">Job posting URL</label>
-        <div class="input-group">
-          <input
-            id="url-input"
-            type="url"
-            placeholder="https://www.linkedin.com/jobs/view/..."
-            autocomplete="off"
-            spellcheck="false"
-          />
-          <button class="btn btn-primary" id="analyze-url-btn" onclick="analyzeUrl()">
-            Analyze
-          </button>
-        </div>
-      </div>
+      <div class="section-label">Basics</div>
 
-      <div class="divider-line" onclick="toggleManual()">
-        <span class="divider-line-text" id="manual-toggle-text">or paste details manually</span>
-      </div>
-
-      <div class="manual-fields" id="manual-section">
-        <div class="field-row">
-          <div class="field">
-            <label for="manual-title">Job title</label>
-            <input id="manual-title" type="text" placeholder="Senior Software Engineer" />
-          </div>
-          <div class="field">
-            <label for="manual-company">Company</label>
-            <input id="manual-company" type="text" placeholder="Acme Corp" />
-          </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="manual-title">Job title</label>
+          <input id="manual-title" type="text" placeholder="Senior Software Engineer" />
         </div>
         <div class="field">
-          <label for="manual-desc">Job description</label>
-          <textarea id="manual-desc" placeholder="Paste the full job description here..."></textarea>
+          <label for="manual-company">Company</label>
+          <input id="manual-company" type="text" placeholder="Acme Corp" />
         </div>
-        <button class="btn btn-primary" id="analyze-manual-btn" style="width: 100%;" onclick="analyzeManual()">
-          Analyze Details
-        </button>
       </div>
+
+      <div class="field">
+        <label for="manual-desc">Job description</label>
+        <textarea id="manual-desc" placeholder="Paste the full job description here — the more detail the better..."></textarea>
+      </div>
+
+      <div class="section-label">Credibility signals <span class="optional-tag">(optional — improves accuracy)</span></div>
+
+      <div class="field-row-3">
+        <div class="field">
+          <label for="manual-salary">Salary range</label>
+          <input id="manual-salary" type="text" placeholder="$120k–$180k" />
+        </div>
+        <div class="field">
+          <label for="manual-location">Location</label>
+          <input id="manual-location" type="text" placeholder="Remote / NYC / etc." />
+        </div>
+        <div class="field">
+          <label for="manual-source">Where found</label>
+          <select id="manual-source">
+            <option value="">Select…</option>
+            <option value="LinkedIn">LinkedIn</option>
+            <option value="Indeed">Indeed</option>
+            <option value="Glassdoor">Glassdoor</option>
+            <option value="Company website">Company website</option>
+            <option value="Recruiter email">Recruiter email</option>
+            <option value="Staffing agency">Staffing agency</option>
+            <option value="Other job board">Other job board</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="field-row-3">
+        <div class="field">
+          <label for="manual-type">Employment type</label>
+          <select id="manual-type">
+            <option value="">Select…</option>
+            <option value="Full-time">Full-time</option>
+            <option value="Part-time">Part-time</option>
+            <option value="Contract">Contract</option>
+            <option value="Freelance">Freelance</option>
+            <option value="Internship">Internship</option>
+            <option value="Not specified">Not specified</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="manual-level">Experience level</label>
+          <select id="manual-level">
+            <option value="">Select…</option>
+            <option value="Entry/Junior">Entry / Junior</option>
+            <option value="Mid-level">Mid-level</option>
+            <option value="Senior">Senior</option>
+            <option value="Lead/Principal">Lead / Principal</option>
+            <option value="Director+">Director+</option>
+            <option value="Not specified">Not specified</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="manual-apply">Apply method</label>
+          <select id="manual-apply">
+            <option value="">Select…</option>
+            <option value="Company website">Company website</option>
+            <option value="Easy Apply / one-click">Easy Apply / one-click</option>
+            <option value="Email resume">Email resume</option>
+            <option value="External ATS">External ATS</option>
+            <option value="Not specified">Not specified</option>
+          </select>
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="analyze-btn" style="width: 100%; margin-top: 8px;" onclick="analyzeManual()">
+        Analyze This Job
+      </button>
 
       <div class="error-banner" id="error-banner"></div>
     </div>
@@ -722,14 +762,6 @@ const FLAG_LABELS = {
   structure: 'Role Structure',
 };
 
-/* ─── Toggle Manual ─── */
-function toggleManual() {
-  const section = document.getElementById('manual-section');
-  const text = document.getElementById('manual-toggle-text');
-  const isOpen = section.classList.toggle('open');
-  text.textContent = isOpen ? 'hide manual entry' : 'or paste details manually';
-}
-
 /* ─── Loading State ─── */
 function setLoading(btnId, loading) {
   const btn = document.getElementById(btnId);
@@ -754,59 +786,43 @@ function hideError() {
   document.getElementById('error-banner').classList.remove('visible');
 }
 
-/* ─── Analyze URL ─── */
-async function analyzeUrl() {
-  const url = document.getElementById('url-input').value.trim();
-  if (!url) {
-    showError('Please enter a job posting URL.');
-    return;
-  }
-  if (!url.startsWith('http')) {
-    showError('Please enter a valid URL starting with https://');
-    return;
-  }
-
-  hideError();
-  setLoading('analyze-url-btn', true);
-
-  try {
-    const res = await fetch(`${API}/web/scrape-and-analyze`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
-    });
-
-    if (!res.ok) throw new Error(`Server responded with ${res.status}`);
-
-    const data = await res.json();
-    renderResults(data);
-  } catch (err) {
-    showError(`Analysis failed: ${err.message}. Try pasting details manually.`);
-  } finally {
-    setLoading('analyze-url-btn', false);
-  }
-}
-
 /* ─── Analyze Manual ─── */
 async function analyzeManual() {
   const title = document.getElementById('manual-title').value.trim();
   const company = document.getElementById('manual-company').value.trim();
   const rawText = document.getElementById('manual-desc').value.trim();
-  const url = document.getElementById('url-input').value.trim() || 'https://manual-entry';
 
   if (!title || !company || !rawText) {
     showError('Please fill in job title, company, and description.');
     return;
   }
 
+  const salaryRange = document.getElementById('manual-salary').value.trim() || null;
+  const location = document.getElementById('manual-location').value.trim() || null;
+  const jobSource = document.getElementById('manual-source').value || null;
+  const employmentType = document.getElementById('manual-type').value || null;
+  const experienceLevel = document.getElementById('manual-level').value || null;
+  const applicationMethod = document.getElementById('manual-apply').value || null;
+
   hideError();
-  setLoading('analyze-manual-btn', true);
+  setLoading('analyze-btn', true);
 
   try {
     const res = await fetch(`${API}/web/manual-analyze`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, title, company, rawText }),
+      body: JSON.stringify({
+        url: 'https://manual-entry',
+        title,
+        company,
+        rawText,
+        salaryRange,
+        location,
+        jobSource,
+        employmentType,
+        experienceLevel,
+        applicationMethod,
+      }),
     });
 
     if (!res.ok) throw new Error(`Server responded with ${res.status}`);
@@ -816,7 +832,7 @@ async function analyzeManual() {
   } catch (err) {
     showError(`Analysis failed: ${err.message}`);
   } finally {
-    setLoading('analyze-manual-btn', false);
+    setLoading('analyze-btn', false);
   }
 }
 
@@ -910,9 +926,11 @@ function animateNumber(el, from, to, duration) {
   requestAnimationFrame(frame);
 }
 
-/* ─── Enter key triggers analyze ─── */
-document.getElementById('url-input').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') analyzeUrl();
+/* ─── Enter key in text fields triggers analyze ─── */
+document.querySelectorAll('#manual-title, #manual-company, #manual-salary, #manual-location').forEach(el => {
+  el.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') analyzeManual();
+  });
 });
 </script>
 
