@@ -23,7 +23,11 @@ function getFirstMatch(...selectors: string[]): string {
 }
 
 function isLinkedInJobPage(): boolean {
-  return /\/jobs\/view\/\d+/.test(window.location.pathname);
+  // Match /jobs/view/123 or /jobs/view/job-title-slug-123456 (LinkedIn uses both formats)
+  if (/\/jobs\/view\//.test(window.location.pathname)) return true;
+  // Match /jobs/search/?currentJobId=... (job detail in right panel)
+  if (/\/jobs\/search\//.test(window.location.pathname) && /currentJobId=/.test(window.location.search)) return true;
+  return false;
 }
 
 function parseLinkedInPageTitle(): { title: string; company: string } {
@@ -119,11 +123,14 @@ function extractJobMetadata(): JobMetadata {
         const parsed = parseLinkedInPageTitle();
         if (!title) title = parsed.title;
         if (!company) company = parsed.company;
-        // DOM selectors as last resort
+        // DOM selectors — LinkedIn changes class names frequently, use multiple fallbacks
         if (!title) {
           title = getFirstMatch(
             '.job-details-jobs-unified-top-card__job-title',
             '.jobs-unified-top-card__job-title',
+            '[class*="job-title"]',
+            '[class*="JobTitle"]',
+            'h1.t-24',
             'h1',
           );
         }
@@ -131,12 +138,16 @@ function extractJobMetadata(): JobMetadata {
           company = getFirstMatch(
             '.job-details-jobs-unified-top-card__company-name',
             '.jobs-unified-top-card__company-name',
+            '[class*="company-name"]',
+            '[class*="CompanyName"]',
+            '[class*="top-card-layout__entity-info"] a',
           );
         }
         if (!postedDate) {
           postedDate = getFirstMatch(
             '.jobs-unified-top-card__posted-date',
             '[class*="posted-date"]',
+            '[class*="postedDate"]',
           ) || null;
         }
         break;
@@ -554,7 +565,13 @@ function main(): void {
     return;
   }
 
-  attemptExtraction(0);
+  // LinkedIn is a heavy SPA — job content loads asynchronously; wait for it to render
+  const isLinkedIn = detectPlatform() === 'linkedin';
+  if (isLinkedIn) {
+    setTimeout(() => attemptExtraction(0), 2500);
+  } else {
+    attemptExtraction(0);
+  }
 }
 
 // Debounced SPA navigation handler — LinkedIn changes the URL multiple
@@ -575,7 +592,10 @@ const observer = new MutationObserver(() => {
       if (oldSidebar) oldSidebar.remove();
       sidebarVisible = false;
       if (shouldAnalyze()) {
-        attemptExtraction(0);
+        // LinkedIn SPA: wait for new job content to render before extracting
+        const isLinkedIn = detectPlatform() === 'linkedin';
+        const delay = isLinkedIn ? 2500 : 0;
+        setTimeout(() => attemptExtraction(0), delay);
       }
     }, 2000);
   }
